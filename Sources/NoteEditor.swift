@@ -292,10 +292,6 @@ struct NoteEditorView: View {
     @State private var pass2 = ""
     @State private var gateError = ""
     @State private var confirmingDelete = false
-    /// Where the note has been dragged to, relative to the centre. The panel
-    /// covers the whole screen now, so this can go anywhere on it.
-    @State private var drag: CGSize = .zero
-    @State private var dragAnchor: CGSize = .zero
 
     enum GateField { case first, second }
     @FocusState private var gateFocus: GateField?
@@ -308,12 +304,10 @@ struct NoteEditorView: View {
 
     var body: some View {
         sheet
-            .offset(drag)
         .background(
             noteShape
                 .fill(LinearGradient(colors: [pal.paper, pal.paper.opacity(0.88)],
                                      startPoint: .top, endPoint: .bottom))
-                .shadow(color: .black.opacity(0.34), radius: 28, x: 0, y: 14)
         )
         .clipShape(noteShape)
         .overlay(noteShape.strokeBorder(Color.black.opacity(0.07), lineWidth: 0.5))
@@ -329,7 +323,6 @@ struct NoteEditorView: View {
             if q != nil { findFocused = true } else { deck.bridge.focusText() }
         }
         .onDisappear {
-            drag = .zero; dragAnchor = .zero
             confirmingDelete = false   // never reopen mid-question
             flush()
             // Shut a locked note behind us: the key and the text both leave
@@ -560,14 +553,6 @@ struct NoteEditorView: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 32)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture()
-                .onChanged { drag = CGSize(width: dragAnchor.width + $0.translation.width,
-                                           height: dragAnchor.height + $0.translation.height) }
-                .onEnded { _ in dragAnchor = drag }
-        )
-        .onHover { $0 ? NSCursor.openHand.push() : NSCursor.pop() }
     }
 
     private var findBar: some View {

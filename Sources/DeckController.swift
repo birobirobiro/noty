@@ -137,11 +137,9 @@ final class DeckController: NSObject {
             // for one frame the deck draws against the panel's far edge — which
             // looks exactly like the note flying in from mid-screen.
             //
-            // It spans the whole screen so an open note has a middle to sit in.
-            // The deck is still pinned to the edge by the ZStack's alignment,
-            // and hotZone still measures in from f.maxX / f.minX, which are the
-            // screen edges either way.
-            frame = NSRect(x: full.minX, y: vis.minY, width: full.width, height: vis.height)
+            let w = DeckGeom.expandedWidth
+            frame = NSRect(x: onRight ? full.maxX - w : full.minX,
+                           y: vis.minY, width: w, height: vis.height)
         }
         panel.setFrame(frame, display: true, animate: false)
         if model.panelHeight != frame.height { model.panelHeight = frame.height }
@@ -285,7 +283,9 @@ final class DeckController: NSObject {
         manager?.deckDidActivate(self)
         setState(.expanded(id))
         NSApp.activate()
-        panel.makeKeyAndOrderFront(nil)
+        if let note = NoteStore.shared.note(id: id) {
+            NoteWindow.shared.show(note, deck: model, controller: self, on: screen)
+        }
         // Belt and braces: the text view claims focus as it enters the window,
         // but reopening a note SwiftUI has already built skips that moment, so
         // ask once more after this turn of the loop.
@@ -303,6 +303,7 @@ final class DeckController: NSObject {
     /// Closing a note steps back to the deck — the tabs stay where they were.
     /// Only leaving the deck entirely puts it back to sleep.
     func collapse() {
+        NoteWindow.shared.close()
         if model.state.expandedID != nil {
             setState(.fan)
             NSApp.deactivate()
@@ -315,6 +316,7 @@ final class DeckController: NSObject {
 
     /// Dismiss the whole deck, note and tabs together.
     func dismiss() {
+        NoteWindow.shared.close()
         let wasExpanded = model.state.expandedID != nil
         setState(.rest)
         if wasExpanded { NSApp.deactivate() }

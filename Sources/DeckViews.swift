@@ -54,31 +54,10 @@ struct DeckRootView: View {
         // measured width) keeps it pinned to the edge through a resize.
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: onRight ? .topTrailing : .topLeading)
-        // The open note is an overlay rather than another child of the
-        // edge-aligned ZStack, so it centres on the panel — which is now the
-        // whole screen — while the deck stays against the bezel. The overlay
-        // inherits the parent's proposal, so no GeometryReader is involved:
-        // a reader reports the previous width for a frame or two after the
-        // rest→fan resize, which would fling the note in from the edge.
-        .overlay(alignment: .top) {
-            if let id = deck.state.expandedID, let note = store.note(id: id) {
-                NoteEditorView(note: note, deck: deck, controller: controller)
-                    .frame(width: DeckGeom.editorWidth, height: DeckGeom.editorHeight)
-                    .padding(.top, editorTop(lay))
-                    .transition(.modifier(active: NotePull(hidden: true),
-                                          identity: NotePull(hidden: false)))
-                    .id(id)
-            }
-        }
         .animation(.spring(response: 0.30, dampingFraction: 0.9), value: deck.fanVisible)
         .animation(.easeInOut(duration: 0.22), value: deck.style)
     }
 
-    /// Centred in the visible frame — under the menu bar, which is where the
-    /// middle of the screen actually is to look at.
-    private func editorTop(_ lay: DeckLayout) -> CGFloat {
-        max(10, (lay.panelHeight - DeckGeom.editorHeight) / 2)
-    }
 }
 
 // MARK: - Pill (at rest)
@@ -220,19 +199,6 @@ struct FanColumn: View {
 
 /// The note emerging from its tab: a short slide off the edge, a touch of scale
 /// anchored there, and a fade. A full-width slide reads as a window flying in.
-struct NotePull: ViewModifier {
-    let hidden: Bool
-
-    /// It used to slide off the bezel, because that is where it came from.
-    /// Centred, there is no edge to come off, so it rises into place.
-    func body(content: Content) -> some View {
-        content
-            .offset(y: hidden ? 10 : 0)
-            .scaleEffect(hidden ? 0.965 : 1, anchor: .center)
-            .opacity(hidden ? 0 : 1)
-    }
-}
-
 struct EdgeLine: Shape {
     func path(in r: CGRect) -> Path {
         var p = Path()
