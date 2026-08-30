@@ -224,7 +224,33 @@ extension NativeTextViewWrapper.Coordinator {
         applyHeading(level: sender.tag)
     }
 
+    /// NOTY MODIFICATION: apply to every selected line, not just the first.
+    ///
+    /// `lineRange(for:)` returns the whole block a selection touches, and the
+    /// original prefixed that block once — so selecting two lines and asking
+    /// for a bullet produced "- one\ntwo". The per-line logic below is theirs,
+    /// untouched; this walks the lines backwards (so the earlier ranges stay
+    /// valid as the text grows) and calls it once per line.
     private func applyList(prefix: String) {
+        guard let tv = textView else { return }
+        let nsText = tv.string as NSString
+        let block = nsText.lineRange(for: tv.selectedRange())
+
+        var starts: [Int] = []
+        var i = block.location
+        while i < NSMaxRange(block) {
+            let lr = nsText.lineRange(for: NSRange(location: i, length: 0))
+            starts.append(lr.location)
+            i = max(NSMaxRange(lr), lr.location + 1)
+        }
+        guard starts.count > 1 else { return applyListToLine(prefix: prefix) }
+        for start in starts.reversed() {
+            tv.setSelectedRange(NSRange(location: start, length: 0))
+            applyListToLine(prefix: prefix)
+        }
+    }
+
+    private func applyListToLine(prefix: String) {
         guard let tv = textView else { return }
         let nsText = tv.string as NSString
         let selRange = tv.selectedRange()
