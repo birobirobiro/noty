@@ -64,9 +64,8 @@ Inside a note:
 |---|---|
 | `Esc` | close the note, back to the tabs (or dismiss the find bar) |
 | `⌘F` | find in note |
+| `⌘,` | settings |
 | `⌘.` | cycle its colour |
-| `⌘T` | turn the current line into a task, or strip the checkbox off |
-| `⌘⌫` | delete, with ten seconds to undo |
 | `⌘P` | pin the note so it stays open |
 | `⌃+` / `⌃-` | bigger / smaller note text |
 
@@ -74,16 +73,38 @@ Standard editing (`⌘C` / `⌘V` / `⌘Z` / `⌘A`) works everywhere — the ap
 main menu at launch purely so those key equivalents dispatch, even though an
 accessory app draws no menu bar.
 
+## Markdown, rendered as you write it
+
+The note is the formatted text. Bold is bold, a heading is a heading, and the
+markers that say so are not shown — no one writing a shopping list should have
+to look at a pair of asterisks. A formatting bar sits above the note: bold,
+italic, strikethrough, code, heading, quote, list and checklist, with bold and
+italic lighting up as the caret moves through them.
+
+The file on disk is still plain Markdown, and the characters are still in the
+text — they are drawn in nothing rather than removed, which is what keeps
+selection, find, copy and undo honest, since what is stored and what is shown
+are the same range. The trade-off is that a marker typed by mistake cannot be
+repaired by hand, because it cannot be seen: remove the formatting with the bar
+instead.
+
+Editing is [swift-markdown-engine](https://github.com/nodes-app/swift-markdown-engine),
+Apache-2.0, vendored in `Vendor/` because this project builds with plain
+`swiftc` and has no package manager. Four changes were needed and each is
+marked `NOTY MODIFICATION` and listed in `Vendor/README.md` — three of them are
+bug fixes worth sending upstream.
+
 ## Checkbox tasks
 
-Any line can be a task. `⌘T` (or the checklist button in a note's header) puts a
-checkbox on the current line; **click the box to tick it off** and the line is
-struck through and dimmed. Return carries the list on to the next task, and
-Return on an empty task ends the list.
+Any line can be a task. The checklist button in the formatting bar puts a
+checkbox on the current line, or type `- [ ] `; **click the box to tick it off**
+and the line is struck through and dimmed. Return carries the list on to the
+next task, and Return on an empty task ends the list.
 
-Tasks live inline in the note body as `☐` / `☑` prefixes, so a note stays plain
-text. Markdown export writes them as standard `- [ ]` / `- [x]` task syntax and
-import reads that back. All Notes shows a `done/total` count per note.
+Tasks are stored as Markdown — `- [ ]` and `- [x]` — so a note is the same text
+a `.md` file would hold, with nothing to translate on the way in or out. Notes
+written by an older build stored `☐` / `☑` glyphs and are converted once, on
+first launch. All Notes shows a `done/total` count per note.
 
 ## Everything else
 
@@ -98,9 +119,14 @@ import reads that back. All Notes shows a `done/total` count per note.
   This raises the panel to `.statusBar` level; `.floating` alone does not draw
   over a full-screen space.
 - **Autosave** 250 ms after you stop typing, and again on close.
-- **Pick the face and the size.** Right-click the pill → *Note font* offers the
-  installed faces that suit a note (a hand by default), and *Text size* or
-  `⌃+` / `⌃-` sets the size. Tab labels follow the same face, a weight bolder.
+- **Settings, in a window** (`⌘,`, or the menu-bar item). Deck style and edge,
+  whether it draws over full-screen apps, the note's face — the installed ones
+  that suit a note, a hand by default — its size with a live sample, launch at
+  login, and updates. Tab labels follow the same face, a weight bolder.
+- **A menu-bar item.** The app hides its Dock icon, so without one the only way
+  in was a right-click on the deck, which you had to already know about.
+- **English, português do Brasil and español**, following the Mac by default or
+  chosen in Settings.
 - **Pin a note to keep it open.** The pin in a note's header (or `⌘P`) stops it
   being dismissed by anything you did not aim at it — clicking away in another
   app, or leaving it idle. Esc and Close still close it. Pinned tabs carry a dot,
@@ -114,15 +140,32 @@ import reads that back. All Notes shows a `done/total` count per note.
   a single document, or a `.stickies` archive that preserves colours, archived
   state and dates. **Import** reads `.stickies` back, and will also take loose
   `.md` / `.txt` files.
-- Right-click the pill for the full menu: new note, windows, edge side, launch at
-  login, export, import, quit.
+- Right-click the pill, or use the menu-bar item, for new note, all notes,
+  archive, export, import, settings and quit.
+- **Drag rows in All Notes to reorder them**, and the deck follows — both read
+  the same order.
 
 ## Your notes stay on your Mac
 
 - Local SQLite database in `~/Library/Application Support/Noty/`.
-- **Note bodies are encrypted with AES-GCM** (CryptoKit, 256-bit). Titles,
-  colours and timestamps stay in plaintext so lists render without unsealing
-  every row.
+- **Titles and bodies are both encrypted with AES-GCM** (CryptoKit, 256-bit).
+  A title is usually the part that gives a note away, so leaving it readable
+  told anyone with the file what every note was about. Colours and timestamps
+  stay plaintext.
+- **The key lives in the Keychain**, `ThisDeviceOnly` so it does not sync. It
+  used to be a 32-byte file beside the database, where anything that could read
+  the notes could read the key next to them; an existing one is migrated in and
+  deleted. On a fresh install with no Keychain the app stores nothing rather
+  than falling back to something weaker.
+- **Each ciphertext is bound to its row and column**, so a blob cannot be moved
+  from one note's body into another's title and still open.
+- **A note that will not decrypt is never overwritten.** It is shown as
+  unreadable rather than as empty, so whatever went wrong stays fixable.
+- **A note can carry its own password.** Its text is sealed with a key derived
+  from what you type (PBKDF2-HMAC-SHA256, 2M rounds, per-note salt) and sealed
+  again with the master key on the way to disk — so the Keychain key alone does
+  not open it, and neither does the password. The derived key lives only in
+  memory, only while the note is open. There is no recovery path.
 - No account, no server, no analytics, no telemetry, no tracking SDKs.
 - **One network request, ever:** Sparkle fetches the appcast to see whether a
   newer version exists. Nothing about your notes is sent — it is a plain GET of
@@ -189,9 +232,17 @@ Sources/
   Main.swift            @main entry point; NSApplication, accessory policy
   AppDelegate.swift     wiring, actions, main menu
   Core.swift            Paths, AES-GCM Crypto, colour palette, Note model
+  Lock.swift            per-note passwords: PBKDF2 + a second seal
+  NoteWindow.swift      the open note, as its own movable panel
+  NoteMarkdownEditor.swift  the Markdown editor, formatting bar and tooltips
+  SettingsWindow.swift  settings, in a window rather than a menu
   Store.swift           SQLite (C API) — schema, load, upsert, delete
   NoteStore.swift       observable model; the single source of truth
   Settings.swift        UserDefaults prefs + launch-at-login
+Vendor/
+  MarkdownEngine/       swift-markdown-engine, Apache-2.0 (see Vendor/README.md)
+Resources/
+  en.lproj/ pt-BR.lproj/ es.lproj/   translations
   HotKeys.swift         Carbon global shortcuts (no permissions)
   DeckPanel.swift       geometry, NSPanel subclass, tracking container
   DeckController.swift  one deck per display + the state machine
@@ -222,13 +273,17 @@ Set `NOTY_DEBUG_DECK=1` in the environment to trace deck state transitions on st
 - **Not sandboxed**, so data lives in `~/Library/Application Support/Noty/`
   rather than `~/Library/Containers/`. Sandboxing needs a provisioning profile,
   which needs Xcode and a developer account.
-- The AES key is a `0600` file beside the database. The Keychain is the right
-  home for it in a distributed build, but an ad-hoc signature changes on every
-  rebuild, which makes the Keychain re-prompt or deny each time.
+- The AES key is in the Keychain. It began as a `0600` file beside the
+  database, which is no protection at all — anything that could read the notes
+  could read the key next to them. The original reason for the file was real
+  though, and still applies while developing: an ad-hoc signature changes on
+  every rebuild, so the Keychain can re-prompt. That is a cost worth paying
+  once per build rather than storing the key in the open.
 - `.stickies` here is Noty's own JSON archive format — the original's is opaque,
   so the two are not interchangeable. This one round-trips its own exports with
   full fidelity.
-- No licensing, trial, or update machinery.
+- No licensing or trial machinery. Updates are Sparkle, and can be switched
+  off in Settings.
 - Ad-hoc signed and not notarised, so Gatekeeper will want a right-click → Open
   the first time if the app is moved off this machine.
 
