@@ -169,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Sticky notes docked to the edge of your screen.
 
         ⌥⌘N  new note      ⌥⌘A  all notes      ⌥⌘L  archive
-        In a note — Esc closes, ⌘F finds, ⌘. cycles colour, ⌘⌫ deletes.
+        In a note — Esc closes, ⌘F finds, ⌘. cycles the colour.
 
         Notes are stored locally in an SQLite database; bodies are encrypted \
         with AES-GCM. Your notes never leave this Mac — the only network request \

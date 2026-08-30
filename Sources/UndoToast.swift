@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import Combine
 
-/// "⌘⌫ deletes it with ten seconds to undo." — a floating confirmation that
+/// "Deleted, with ten seconds to undo." — a floating confirmation that
 /// tracks NoteStore.pendingUndo.
 final class UndoToast {
     static let shared = UndoToast()

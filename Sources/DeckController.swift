@@ -352,11 +352,9 @@ final class DeckController: NSObject {
             }
             self.noteActivity()
             guard mods == .command else { return event }
-            if event.keyCode == 51 {                                  // ⌘⌫
-                NoteStore.shared.delete(id: id)
-                self.collapse()
-                return nil
-            }
+            // No ⌘⌫: one key away from an ordinary Backspace sat an
+            // irreversible action on the note you were writing in. Deleting is
+            // a deliberate act now — the button in the footer, or the list.
             switch event.charactersIgnoringModifiers?.lowercased() {
             case ".":
                 NoteStore.shared.cycleColor(id: id)

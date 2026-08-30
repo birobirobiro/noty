@@ -224,7 +224,7 @@ final class NoteStore: ObservableObject {
         ⌥⌘L  archive
 
         Inside a note: Esc closes, ⌘F finds, ⌘. cycles the colour, \
-        ⌘⌫ deletes with ten seconds to undo.
+        Deleting a note gives you ten seconds to undo it.
         """, color: 0)
     }
 }
