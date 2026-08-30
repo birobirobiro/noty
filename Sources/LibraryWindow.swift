@@ -25,7 +25,6 @@ final class LibraryModel: ObservableObject {
     @Published var mode: LibraryMode = .all
     @Published var query = ""
     @Published var selection: String?
-    let bridge = EditorBridge()
 }
 
 /// "⌥⌘A opens every note in one window" — plus the archive, on ⌥⌘L.
@@ -335,7 +334,7 @@ struct LibraryView: View {
     @ViewBuilder
     private var detail: some View {
         if let note = selected {
-            LibraryDetail(note: note, bridge: model.bridge)
+            LibraryDetail(note: note)
                 .id(note.id)
         } else {
             VStack(spacing: 8) {
@@ -354,7 +353,6 @@ struct LibraryView: View {
 /// note stopped looking like one.
 struct LibraryDetail: View {
     let note: Note
-    let bridge: EditorBridge
 
     @State private var text = ""
     @State private var saveWork: DispatchWorkItem?
@@ -475,9 +473,8 @@ struct LibraryDetail: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear { DispatchQueue.main.async { passFocused = true } }
                 } else {
-                    NoteTextView(text: $text, ink: NSColor(pal.ink), bridge: bridge,
-                                 autofocus: false, fontSize: Settings.noteFontSize)
-                        .padding(.horizontal, 14)
+                    NoteFormatBar(ink: pal.ink)
+                    NoteMarkdownEditor(text: $text, note: note, surface: "library")
                         .frame(maxHeight: .infinity)
                 }
 

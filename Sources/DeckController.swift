@@ -29,7 +29,6 @@ final class DeckModel: ObservableObject {
     @Published var revealTick = 0           // bumped to restage the fan animation
 
     /// Owns the NSTextView of the open note so ⌘F can drive it.
-    let bridge = EditorBridge()
 
     /// The deck shows tabs in every state except rest.
     var fanVisible: Bool { state != .rest }

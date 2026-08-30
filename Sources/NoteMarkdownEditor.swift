@@ -75,6 +75,9 @@ struct NoteMarkdownEditor: View {
     @Binding var text: String
     let note: Note
     var isEditable: Bool = true
+    /// Distinguishes two editors showing the same note. The engine keys undo
+    /// on this, so the note window and the library must not share one stack.
+    var surface: String = "note"
 
     @State private var wikiActive = false
     @State private var pendingReplacement: InlineReplacementRequest?
@@ -128,7 +131,7 @@ struct NoteMarkdownEditor: View {
             fontSize: Settings.noteFontSize,
             // Per-note undo stacks: switching notes and back must not let one
             // note's undo reach into another's text.
-            documentId: note.id,
+            documentId: "\(surface):\(note.id)",
             isEditable: isEditable
         )
     }
