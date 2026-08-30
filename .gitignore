@@ -9,3 +9,4 @@ appcast.xml.bak
 # vendored per-machine agent skills
 .claude/
 .agents/
+skills-lock.json

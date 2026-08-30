@@ -11,6 +11,13 @@
 	<key>CFBundleShortVersionString</key> <string>1.0.0</string>
 	<key>CFBundleVersion</key>         <string>1</string>
 	<key>LSMinimumSystemVersion</key>  <string>15.0</string>
+	<key>CFBundleDevelopmentRegion</key>  <string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>pt-BR</string>
+		<string>es</string>
+	</array>
 	<key>LSUIElement</key>             <true/>
 	<key>NSHighResolutionCapable</key> <true/>
 	<key>NSHumanReadableCopyright</key><string>Local-only sticky notes.</string>

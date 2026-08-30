@@ -47,6 +47,12 @@ cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 [ -f "$ROOT/Resources/AppIcon.icns" ] && cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/"
 
+# Translations. Each Resources/<lang>.lproj goes across as it is: .strings are
+# read as plain UTF-8, so nothing has to compile them and no Xcode is involved.
+for lproj in "$ROOT"/Resources/*.lproj; do
+    [ -d "$lproj" ] && cp -R "$lproj" "$APP/Contents/Resources/"
+done
+
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 # Sparkle ships signed by its own team and dyld refuses to load a framework whose
