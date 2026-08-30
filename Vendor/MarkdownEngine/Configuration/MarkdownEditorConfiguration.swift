@@ -239,6 +239,11 @@ public struct MarkerStyle: Sendable {
     /// Font size used for "hidden" inline markers. Effectively invisible at
     /// normal zoom while keeping displayed-range == stored-range.
     public var hiddenMarkerFontSize: CGFloat
+    /// NOTY MODIFICATION: whether the caret entering a token reveals its raw
+    /// syntax. True is the engine's behaviour, and the right default — it is
+    /// how a writer fixes a marker they typed wrong. An app whose readers are
+    /// not expected to know Markdown can turn it off and never show a `*`.
+    public var revealUnderCaret: Bool
     /// Alpha applied to inline-code's secondary marker color.
     public var inlineCodeMarkerAlpha: CGFloat
     /// Alpha applied to non-focused find matches when in-document search
@@ -247,10 +252,12 @@ public struct MarkerStyle: Sendable {
 
     public init(
         hiddenMarkerFontSize: CGFloat = 0.1,
+        revealUnderCaret: Bool = true,
         inlineCodeMarkerAlpha: CGFloat = 0.5,
         findMatchHighlightAlpha: CGFloat = 0.65
     ) {
         self.hiddenMarkerFontSize = hiddenMarkerFontSize
+        self.revealUnderCaret = revealUnderCaret
         self.inlineCodeMarkerAlpha = inlineCodeMarkerAlpha
         self.findMatchHighlightAlpha = findMatchHighlightAlpha
     }

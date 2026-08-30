@@ -65,6 +65,7 @@ enum MarkdownASTStyler {
             codeBackground: configuration.services.syntaxHighlighter.backgroundColor(),
             codeParagraphStyle: codePara,
             inlineMarkerFont: NSFont(name: fontName, size: hiddenSize) ?? .systemFont(ofSize: hiddenSize),
+            revealsUnderCaret: configuration.markers.revealUnderCaret,
             caret: caretLocation,
             selection: selection,
             config: configuration,
@@ -571,6 +572,8 @@ enum MarkdownASTStyler {
         let codeBackground: NSColor
         let codeParagraphStyle: NSParagraphStyle
         let inlineMarkerFont: NSFont
+        /// NOTY MODIFICATION: see MarkerStyle.revealUnderCaret.
+        var revealsUnderCaret: Bool = true
         let caret: Int
         /// The full selected range (nil/empty when the selection is a bare
         /// caret). Token-based elements already reveal on selection via
@@ -594,6 +597,10 @@ enum MarkdownASTStyler {
 
         /// Active (syntax revealed) when the caret is inside the range or at its end (minus a newline).
         func isActive(_ range: NSRange) -> Bool {
+            // NOTY MODIFICATION: every reveal path asks this one question, so
+            // switching it off here covers emphasis, links, code and headings
+            // together rather than in six places.
+            guard revealsUnderCaret else { return false }
             if NSLocationInRange(caret, range) { return true }
             guard range.length > 0, caret == NSMaxRange(range) else { return false }
             let last = ns.character(at: caret - 1)

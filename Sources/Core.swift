@@ -267,6 +267,10 @@ struct Note: Identifiable, Hashable {
     }
 
     var displayTitle: String {
+        // A title someone typed is shown even on a locked note: they chose it,
+        // unlike the first line, which locking clears precisely so it cannot
+        // give the note away.
+        if !title.isEmpty { return title }
         if locked { return "Locked note" }
         return title.isEmpty ? "New note" : title
     }

@@ -25,6 +25,8 @@ struct NoteEditorView: View {
     @State private var pass2 = ""
     @State private var gateError = ""
     @State private var confirmingDelete = false
+    @State private var title = ""
+    @State private var titleWork: DispatchWorkItem?
     @State private var findCount = 0
     @State private var findAt = 0
 
@@ -53,6 +55,7 @@ struct NoteEditorView: View {
         .clipShape(noteShape)
         .overlay(noteShape.strokeBorder(Color.black.opacity(0.07), lineWidth: 0.5))
         .onAppear {
+            title = note.title
             text = sealed ? "" : live.body
             savedAt = note.modified
         }
@@ -250,10 +253,19 @@ struct NoteEditorView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text(note.displayTitle)
+            TextField("", text: $title, prompt: Text(note.displayTitle)
+                .foregroundColor(pal.ink.opacity(0.45)))
+                .textFieldStyle(.plain)
                 .font(.system(size: 12.5, weight: .semibold))
                 .foregroundStyle(pal.ink.opacity(0.92))
                 .lineLimit(1)
+                .onSubmit { NoteStore.shared.setTitle(id: note.id, title: title) }
+                .onChange(of: title) { _, v in
+                    titleWork?.cancel()
+                    let w = DispatchWorkItem { NoteStore.shared.setTitle(id: note.id, title: v) }
+                    titleWork = w
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: w)
+                }
             Spacer(minLength: 6)
             Text(savedAt.map { "Saved · \(Fmt.ago($0))" } ?? "Not saved")
                 .font(.system(size: 10))

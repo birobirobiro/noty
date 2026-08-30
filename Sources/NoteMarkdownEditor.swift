@@ -96,6 +96,9 @@ struct NoteMarkdownEditor: View {
 
         var config = MarkdownEditorConfiguration()
         config.theme = theme
+        // Nobody writing a shopping list should meet an asterisk. The cost is
+        // that the syntax cannot be edited by hand — the bar does it instead.
+        config.markers = MarkerStyle(revealUnderCaret: false)
         // Room to breathe, and somewhere for the caret to sit at the start of
         // a line without touching the edge of the paper.
         config.textInsets = TextInsets(horizontal: 16, vertical: 12)

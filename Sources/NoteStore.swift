@@ -73,9 +73,21 @@ final class NoteStore: ObservableObject {
             // would print the note's opening words on a tab that is meant to
             // give nothing away.
         } else {
+            // Keep deriving the title from the first line only while nobody has
+            // typed one. "Still automatic" is knowable without another column:
+            // it is whatever the old body would have derived.
+            let stillAuto = notes[i].title == Note.derivedTitle(from: notes[i].body)
             notes[i].body = body
-            notes[i].title = Note.derivedTitle(from: body)
+            if stillAuto { notes[i].title = Note.derivedTitle(from: body) }
         }
+        notes[i].modified = Date()
+        store.upsert(notes[i])
+    }
+
+    /// A title the reader typed, which then stops following the first line.
+    func setTitle(id: String, title: String) {
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].title != title else { return }
+        notes[i].title = title
         notes[i].modified = Date()
         store.upsert(notes[i])
     }
