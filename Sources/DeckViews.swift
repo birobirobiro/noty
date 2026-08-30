@@ -47,16 +47,6 @@ struct DeckRootView: View {
                         .transition(.opacity)
                 }
 
-                // Declared last so it covers the deck, flush to the screen edge.
-                if let id = deck.state.expandedID, let note = store.note(id: id) {
-                    NoteEditorView(note: note, deck: deck, controller: controller, onRight: onRight)
-                        .frame(width: DeckGeom.editorWidth, height: DeckGeom.editorHeight)
-                        .padding(.top, editorTop(lay, id: id))
-                        .transition(.modifier(
-                            active: NotePull(hidden: true, onRight: onRight),
-                            identity: NotePull(hidden: false, onRight: onRight)))
-                        .id(id)
-                }
             }
         // A ZStack is only as wide as its widest child, so it has to be told to fill
         // the panel — otherwise the deck sits at the panel's left edge with a dead
@@ -64,16 +54,30 @@ struct DeckRootView: View {
         // measured width) keeps it pinned to the edge through a resize.
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: onRight ? .topTrailing : .topLeading)
+        // The open note is an overlay rather than another child of the
+        // edge-aligned ZStack, so it centres on the panel — which is now the
+        // whole screen — while the deck stays against the bezel. The overlay
+        // inherits the parent's proposal, so no GeometryReader is involved:
+        // a reader reports the previous width for a frame or two after the
+        // rest→fan resize, which would fling the note in from the edge.
+        .overlay(alignment: .top) {
+            if let id = deck.state.expandedID, let note = store.note(id: id) {
+                NoteEditorView(note: note, deck: deck, controller: controller)
+                    .frame(width: DeckGeom.editorWidth, height: DeckGeom.editorHeight)
+                    .padding(.top, editorTop(lay))
+                    .transition(.modifier(active: NotePull(hidden: true),
+                                          identity: NotePull(hidden: false)))
+                    .id(id)
+            }
+        }
         .animation(.spring(response: 0.30, dampingFraction: 0.9), value: deck.fanVisible)
         .animation(.easeInOut(duration: 0.22), value: deck.style)
     }
 
-    /// Keep the open note level with its own tab, without letting it run off-screen.
-    private func editorTop(_ lay: DeckLayout, id: String) -> CGFloat {
-        let idx = visible.firstIndex { $0.id == id } ?? 0
-        let ideal = lay.center(idx) - DeckGeom.editorHeight / 2
-        let lowest = max(10, lay.panelHeight - DeckGeom.editorHeight - 10)
-        return min(max(10, ideal), lowest)
+    /// Centred in the visible frame — under the menu bar, which is where the
+    /// middle of the screen actually is to look at.
+    private func editorTop(_ lay: DeckLayout) -> CGFloat {
+        max(10, (lay.panelHeight - DeckGeom.editorHeight) / 2)
     }
 }
 
@@ -218,12 +222,13 @@ struct FanColumn: View {
 /// anchored there, and a fade. A full-width slide reads as a window flying in.
 struct NotePull: ViewModifier {
     let hidden: Bool
-    let onRight: Bool
 
+    /// It used to slide off the bezel, because that is where it came from.
+    /// Centred, there is no edge to come off, so it rises into place.
     func body(content: Content) -> some View {
         content
-            .offset(x: hidden ? (onRight ? 40 : -40) : 0)
-            .scaleEffect(hidden ? 0.965 : 1, anchor: onRight ? .trailing : .leading)
+            .offset(y: hidden ? 10 : 0)
+            .scaleEffect(hidden ? 0.965 : 1, anchor: .center)
             .opacity(hidden ? 0 : 1)
     }
 }
@@ -397,6 +402,9 @@ struct DeckButton: View {
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
         .help(help)
+        // The label is an SF Symbol, so without this VoiceOver reads nothing
+        // at all. `help` already carries the words; give them to the label too.
+        .accessibilityLabel(help)
     }
 }
 

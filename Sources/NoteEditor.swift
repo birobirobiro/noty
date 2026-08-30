@@ -276,7 +276,6 @@ struct NoteEditorView: View {
     let note: Note
     @ObservedObject var deck: DeckModel
     unowned let controller: DeckController
-    var onRight: Bool = true
 
     @State private var text = ""
     @State private var saveWork: DispatchWorkItem?
@@ -301,14 +300,12 @@ struct NoteEditorView: View {
     private var sealed: Bool { live.locked && !store.isRevealed(note.id) }
 
     var body: some View {
-        HStack(spacing: 0) {
-            if onRight { gutter; sheet } else { sheet; gutter }
-        }
+        sheet
         .background(
             noteShape
                 .fill(LinearGradient(colors: [pal.paper, pal.paper.opacity(0.88)],
                                      startPoint: .top, endPoint: .bottom))
-                .shadow(color: .black.opacity(0.34), radius: 28, x: onRight ? -12 : 12, y: 12)
+                .shadow(color: .black.opacity(0.34), radius: 28, x: 0, y: 14)
         )
         .clipShape(noteShape)
         .overlay(noteShape.strokeBorder(Color.black.opacity(0.07), lineWidth: 0.5))
@@ -316,7 +313,10 @@ struct NoteEditorView: View {
             text = sealed ? "" : live.body
             savedAt = note.modified
         }
-        .onChange(of: text) { _, v in scheduleSave(v) }
+        .onChange(of: text) { _, v in
+            controller.noteActivity()
+            scheduleSave(v)
+        }
         .onChange(of: deck.findQuery) { _, q in
             if q != nil { findFocused = true } else { deck.bridge.focusText() }
         }
@@ -328,8 +328,10 @@ struct NoteEditorView: View {
         }
     }
 
-    /// Rounded where it leaves the deck, square where it meets the screen edge.
-    private var noteShape: UnevenRoundedRectangle { edgeTabShape(onRight: onRight, radius: 14) }
+    /// Rounded all the way round: nothing is against the screen edge any more.
+    /// `edgeTabShape` stays as it is — the tabs still meet the bezel and must
+    /// keep their square side.
+    private var noteShape: RoundedRectangle { RoundedRectangle(cornerRadius: 14, style: .continuous) }
 
     // MARK: The note itself
 
@@ -451,34 +453,6 @@ struct NoteEditorView: View {
         deck.bridge.focusText()
     }
 
-    /// The note's own tab, carried along so it reads as growing out of the deck.
-    ///
-    /// `rotationEffect` is a render transform, not a layout one: a rotated label
-    /// still *measures* at its unrotated width, so the tint has to be sized on its
-    /// own and the label clipped into it, or the background bleeds across the note.
-    private var gutter: some View {
-        Rectangle()
-            .fill(pal.dash.opacity(0.20))
-            .frame(width: DeckGeom.gutterWidth)
-            .overlay {
-                Text(note.displayTitle.uppercased())
-                    .font(Ink.tabFont)
-                    .tracking(Ink.tabTracking)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .foregroundStyle(pal.ink.opacity(0.7))
-                    .frame(width: DeckGeom.editorHeight - 44)
-                    .rotationEffect(.degrees(onRight ? 90 : -90))
-            }
-            .clipped()
-            .overlay(alignment: onRight ? .trailing : .leading) {
-                EdgeLine()
-                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
-                    .foregroundStyle(pal.ink.opacity(0.22))
-                    .frame(width: 1)
-            }
-    }
-
     private var header: some View {
         HStack(spacing: 8) {
             Text(note.displayTitle)
@@ -519,6 +493,7 @@ struct NoteEditorView: View {
             .buttonStyle(.plain)
             .foregroundStyle(pal.ink.opacity(live.locked ? 0.85 : 0.5))
             .help(live.locked ? "Remove the password" : "Lock this note")
+            .accessibilityLabel(live.locked ? "Remove the password" : "Lock this note")
             .disabled(sealed)
         }
         .padding(.horizontal, 14)

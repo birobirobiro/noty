@@ -5,3 +5,7 @@ build/
 Sparkle/
 sparkle_keys/
 appcast.xml.bak
+
+# vendored per-machine agent skills
+.claude/
+.agents/

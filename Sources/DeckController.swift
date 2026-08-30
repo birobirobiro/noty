@@ -69,6 +69,7 @@ final class DeckController: NSObject {
     private var lastPointer = NSEvent.mouseLocation
     private var exitWork: DispatchWorkItem?     // debounced pointer-exit check
     private var shrinkWork: DispatchWorkItem?   // delayed panel shrink after collapse
+    private var openWork: DispatchWorkItem?     // the two-frame-deferred open
     private var bag = Set<AnyCancellable>()
 
     weak var manager: DeckManager?
@@ -135,9 +136,12 @@ final class DeckController: NSObject {
             // window resize and SwiftUI's relayout land in different frames, and
             // for one frame the deck draws against the panel's far edge — which
             // looks exactly like the note flying in from mid-screen.
-            let w = DeckGeom.expandedWidth
-            frame = NSRect(x: onRight ? full.maxX - w : full.minX,
-                           y: vis.minY, width: w, height: vis.height)
+            //
+            // It spans the whole screen so an open note has a middle to sit in.
+            // The deck is still pinned to the edge by the ZStack's alignment,
+            // and hotZone still measures in from f.maxX / f.minX, which are the
+            // screen edges either way.
+            frame = NSRect(x: full.minX, y: vis.minY, width: full.width, height: vis.height)
         }
         panel.setFrame(frame, display: true, animate: false)
         if model.panelHeight != frame.height { model.panelHeight = frame.height }
@@ -154,6 +158,10 @@ final class DeckController: NSObject {
         let old = model.state
         guard old != new else { return }
         shrinkWork?.cancel(); shrinkWork = nil
+        // A close chased by an open must not let the stale one land afterwards.
+        // After the guard: a repeated setState is a no-op and must not cancel
+        // the open that the first call is still waiting to run.
+        openWork?.cancel(); openWork = nil
         DeckLog.line("setState \(old) -> \(new)  panel=\(Int(panel.frame.width))x\(Int(panel.frame.height))")
 
         if new.rank >= old.rank {
@@ -167,11 +175,14 @@ final class DeckController: NSObject {
                 // resize and the state change into one pass, and then animates the
                 // container's width, dragging the whole deck across the screen with
                 // it. Two display frames of delay keeps them in separate passes.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0 / 60.0) {
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
                     withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
                         self.model.state = new
                     }
                 }
+                openWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0 / 60.0, execute: work)
             }
         } else {
             // Let the exit animation play at full size, then shrink the panel.

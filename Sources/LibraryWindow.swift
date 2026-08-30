@@ -153,7 +153,12 @@ struct LibraryView: View {
                         ForEach(filtered) { note in
                             row(note)
                                 .contentShape(Rectangle())
+                                // A whole-row Button would nest the checkbox
+                                // button inside it, which macOS handles badly;
+                                // the trait is what VoiceOver needs either way.
                                 .onTapGesture { model.selection = note.id }
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityLabel(note.displayTitle)
                         }
                     }
                     .padding(.horizontal, 10)
@@ -252,6 +257,7 @@ struct LibraryView: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 1)
+            .accessibilityLabel(picked.contains(note.id) ? "Deselect note" : "Select note")
 
             RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(note.palette.dash)
