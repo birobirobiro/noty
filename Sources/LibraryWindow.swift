@@ -55,9 +55,15 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
             w.center()
             window = w
         }
+        // Switching an accessory app to .regular and activating in the same
+        // turn does not take: the window opens behind, or not at all. It works
+        // when a note is already open only because expand() has activated us
+        // already. Give the policy change a turn to land.
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate()
-        window?.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak window] in
+            NSApp.activate()
+            window?.makeKeyAndOrderFront(nil)
+        }
     }
 
     private func currentList() -> [Note] { NoteStore.shared.list(model.mode) }
@@ -353,8 +359,23 @@ struct LibraryDetail: View {
     @State private var text = ""
     @State private var saveWork: DispatchWorkItem?
     @State private var confirmingDelete = false
+    @State private var pass = ""
+    @State private var unlockError = ""
+    @FocusState private var passFocused: Bool
+    @ObservedObject private var store = NoteStore.shared
 
     private var pal: NoteColor { note.palette }
+
+    /// Unlocked, or never locked: either way its text may be shown and edited.
+    private var readable: Bool { !note.locked || store.isRevealed(note.id) }
+
+    private func unlock() {
+        guard store.unlock(id: note.id, password: pass) else {
+            unlockError = String(localized: "Wrong password."); pass = ""; return
+        }
+        text = store.note(id: note.id)?.body ?? ""
+        pass = ""; unlockError = ""
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -419,21 +440,40 @@ struct LibraryDetail: View {
                 .padding(.top, 18)
                 .padding(.bottom, 8)
 
-                if note.locked {
-                    // The library had no idea locks existed: it read note.body
-                    // straight into an editable field, so a note unlocked in
-                    // the deck was readable — and writable — here.
-                    VStack(spacing: 8) {
+                if note.locked && !store.isRevealed(note.id) {
+                    // This window edits notes, so telling someone to go and
+                    // open it somewhere else was a dead end. Ask here.
+                    VStack(spacing: 9) {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 24))
                             .foregroundStyle(pal.ink.opacity(0.5))
                         Text("This note is locked")
                             .font(.system(size: 12.5, weight: .semibold))
-                        Text("Open it from the deck to read it.")
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(pal.ink.opacity(0.6))
+                        SecureField("", text: $pass, prompt: Text("Password")
+                            .foregroundColor(pal.ink.opacity(0.4)))
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(pal.ink)
+                            .padding(.horizontal, 10)
+                            .frame(width: 200, height: 28)
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(pal.ink.opacity(0.07)))
+                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(pal.ink.opacity(0.2), lineWidth: 1))
+                            .focused($passFocused)
+                            .onSubmit(unlock)
+                        if !unlockError.isEmpty {
+                            Text(unlockError)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(Color(nsColor: .systemRed))
+                        }
+                        Button("Open") { unlock() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(pal.ink.opacity(0.75))
+                            .controlSize(.small)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear { DispatchQueue.main.async { passFocused = true } }
                 } else {
                     NoteTextView(text: $text, ink: NSColor(pal.ink), bridge: bridge,
                                  autofocus: false, fontSize: Settings.noteFontSize)
@@ -453,9 +493,9 @@ struct LibraryDetail: View {
             .padding(.horizontal, 22)
             .padding(.bottom, 22)
         }
-        .onAppear { text = note.locked ? "" : note.body }
+        .onAppear { text = readable ? note.body : "" }
         .onChange(of: text) { _, v in
-            guard !note.locked else { return }
+            guard readable else { return }
             saveWork?.cancel()
             let w = DispatchWorkItem { NoteStore.shared.updateBody(id: note.id, body: v) }
             saveWork = w
@@ -463,7 +503,7 @@ struct LibraryDetail: View {
         }
         .onDisappear {
             saveWork?.cancel()
-            guard !note.locked else { return }
+            guard readable else { return }
             NoteStore.shared.updateBody(id: note.id, body: text)
         }
     }

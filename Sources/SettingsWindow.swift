@@ -25,9 +25,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             w.center()
             window = w
         }
+        // Switching an accessory app to .regular and activating in the same
+        // turn does not take: the window opens behind, or not at all. It works
+        // when a note is already open only because expand() has activated us
+        // already. Give the policy change a turn to land.
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate()
-        window?.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak window] in
+            NSApp.activate()
+            window?.makeKeyAndOrderFront(nil)
+        }
     }
 
     func windowWillClose(_ notification: Notification) {

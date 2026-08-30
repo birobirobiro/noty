@@ -77,6 +77,9 @@ struct NoteMarkdownEditor: View {
         // Room to breathe, and somewhere for the caret to sit at the start of
         // a line without touching the edge of the paper.
         config.textInsets = TextInsets(horizontal: 16, vertical: 12)
+        // 27.5pt a level is document-sized. A note is 460pt wide and mostly
+        // short lines, so a bullet that far from its text reads as detached.
+        config.lists = ListStyle(indentPerLevel: 15)
         // ~~text~~ is opt-in; a note that marks things done wants it.
         config.extensions = [StrikethroughExtension()]
         config.services.bus = MarkdownEditorBus(

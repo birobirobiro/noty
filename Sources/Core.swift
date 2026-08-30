@@ -261,6 +261,7 @@ struct Note: Identifiable, Hashable {
         var clean = line.trimmingCharacters(in: .whitespaces)
             .replacingOccurrences(of: "^#{1,6}\\s*", with: "", options: .regularExpression)
         clean = Tasks.stripped(clean)
+        clean = Markdown.plain(clean)
         if clean.isEmpty { return "" }
         return clean.count > 60 ? String(clean.prefix(60)) + "…" : clean
     }
@@ -299,6 +300,43 @@ struct Note: Identifiable, Hashable {
 
 /// Checkbox tasks are stored inline in the note body as ☐ / ☑ line prefixes, so a
 /// note is still plain text and exports cleanly to Markdown task syntax.
+/// Markdown reduced to the words in it.
+///
+/// The title in a note's header, on its deck tab and on its library card is
+/// the first line of the body — and the body is Markdown, so a line written as
+/// `**groceries**` was being shown with its asterisks. The editor hides those;
+/// everywhere else that quotes the text has to strip them.
+enum Markdown {
+    private static let rules: [(String, String)] = [
+        // Links and images first: their labels survive, their targets do not.
+        ("!?\\[([^\\]]*)\\]\\([^)]*\\)", "$1"),
+        ("!?\\[\\[([^\\]|]*)(\\|[^\\]]*)?\\]\\]", "$1"),
+        ("`([^`]*)`", "$1"),
+        ("\\*\\*([^*]*)\\*\\*", "$1"),
+        ("__([^_]*)__", "$1"),
+        ("~~([^~]*)~~", "$1"),
+        ("==([^=]*)==", "$1"),
+        // Single delimiters last, so ** has already gone.
+        ("\\*([^*]*)\\*", "$1"),
+        ("(?<![\\p{L}\\p{N}])_([^_]*)_(?![\\p{L}\\p{N}])", "$1"),
+        // Leading block markers on a line that is being quoted as a title.
+        ("^\\s*>\\s*", ""),
+        ("^\\s*[-*+]\\s+", ""),
+        ("^\\s*\\d+[.)]\\s+", ""),
+        // Anything the writer escaped is shown as the character itself.
+        ("\\\\([\\\\`*_\\[\\]~#>+.-])", "$1"),
+    ]
+
+    static func plain(_ line: String) -> String {
+        var out = line
+        for (pattern, replacement) in rules {
+            out = out.replacingOccurrences(of: pattern, with: replacement,
+                                           options: [.regularExpression])
+        }
+        return out.trimmingCharacters(in: .whitespaces)
+    }
+}
+
 enum Tasks {
     static let open: Character = "\u{2610}"    // ☐
     static let done: Character = "\u{2611}"    // ☑

@@ -541,15 +541,6 @@ struct NoteEditorView: View {
             .foregroundStyle(pal.ink.opacity(note.pinned ? 0.85 : 0.4))
             .help(note.pinned ? "Unpin — ⌘P" : "Pin so it stays open  ⌘P")
 
-            Button { deck.bridge.toggleTaskLine() } label: {
-                Image(systemName: "checklist")
-                    .font(.system(size: 11, weight: .semibold))
-                    .frame(width: 18, height: 18)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(pal.ink.opacity(0.5))
-            .help("Task  ⌘T")
             Button { deck.findQuery = deck.findQuery == nil ? "" : nil } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 10.5, weight: .semibold))
