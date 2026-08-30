@@ -37,7 +37,48 @@ final class Store {
         exec("CREATE INDEX IF NOT EXISTS idx_notes_archived ON notes(archived, sort_order);")
         migrateTitles()
         if !hasColumn("lock_salt") { exec("ALTER TABLE notes ADD COLUMN lock_salt BLOB;") }
+        migrateTaskGlyphs()
     }
+
+    /// Rewrites ☐/☑ task lines as Markdown, once.
+    ///
+    /// Runs behind `PRAGMA user_version` rather than a defaults flag, because
+    /// it is a property of this database: copy the file to another Mac and the
+    /// migration state travels with it.
+    ///
+    /// A note that will not decrypt is skipped, never rewritten — the same
+    /// rule as `upsert`. Better to leave one note in the old shape than to
+    /// seal an empty body over ciphertext that is still good.
+    private func migrateTaskGlyphs() {
+        guard userVersion() < 1 else { return }
+
+        var converted = 0, skipped = 0
+        for note in load() {
+            if note.unreadable || note.locked { skipped += 1; continue }
+            let fresh = Tasks.glyphsToMarkdown(note.body)
+            guard fresh != note.body else { continue }
+            var n = note
+            n.body = fresh
+            upsert(n)
+            converted += 1
+        }
+        setUserVersion(1)
+        if converted > 0 || skipped > 0 {
+            NSLog("Noty: task syntax migrated in \(converted) note(s); \(skipped) skipped")
+        }
+    }
+
+    /// A locked note's body is not in memory to convert, and its glyphs sit
+    /// inside the password layer where this cannot reach. Those are rewritten
+    /// the next time they are unlocked and saved.
+    private func userVersion() -> Int {
+        var st: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "PRAGMA user_version;", -1, &st, nil) == SQLITE_OK else { return 0 }
+        defer { sqlite3_finalize(st) }
+        return sqlite3_step(st) == SQLITE_ROW ? Int(sqlite3_column_int(st, 0)) : 0
+    }
+
+    private func setUserVersion(_ v: Int) { exec("PRAGMA user_version = \(v);") }
 
     /// Adds the sealed-title column and seals whatever the old plaintext one
     /// still holds. Runs once; afterwards `title` is left empty on every row.

@@ -104,7 +104,10 @@ struct LibraryView: View {
         let q = model.query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return source }
         return source.filter {
-            $0.displayTitle.lowercased().contains(q) || $0.body.lowercased().contains(q)
+            // Searching a locked note's body would answer questions about
+            // text the reader has not unlocked.
+            $0.displayTitle.lowercased().contains(q)
+                || (!$0.locked && $0.body.lowercased().contains(q))
         }
     }
 
@@ -416,10 +419,27 @@ struct LibraryDetail: View {
                 .padding(.top, 18)
                 .padding(.bottom, 8)
 
-                NoteTextView(text: $text, ink: NSColor(pal.ink), bridge: bridge,
-                             autofocus: false, fontSize: Settings.noteFontSize)
-                    .padding(.horizontal, 14)
-                    .frame(maxHeight: .infinity)
+                if note.locked {
+                    // The library had no idea locks existed: it read note.body
+                    // straight into an editable field, so a note unlocked in
+                    // the deck was readable — and writable — here.
+                    VStack(spacing: 8) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(pal.ink.opacity(0.5))
+                        Text("This note is locked")
+                            .font(.system(size: 12.5, weight: .semibold))
+                        Text("Open it from the deck to read it.")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(pal.ink.opacity(0.6))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    NoteTextView(text: $text, ink: NSColor(pal.ink), bridge: bridge,
+                                 autofocus: false, fontSize: Settings.noteFontSize)
+                        .padding(.horizontal, 14)
+                        .frame(maxHeight: .infinity)
+                }
 
                 Divider().opacity(0.28).padding(.horizontal, 20)
                 Text("Created \(Fmt.stamp.string(from: note.created)) · Updated \(Fmt.ago(note.modified))")
@@ -433,8 +453,9 @@ struct LibraryDetail: View {
             .padding(.horizontal, 22)
             .padding(.bottom, 22)
         }
-        .onAppear { text = note.body }
+        .onAppear { text = note.locked ? "" : note.body }
         .onChange(of: text) { _, v in
+            guard !note.locked else { return }
             saveWork?.cancel()
             let w = DispatchWorkItem { NoteStore.shared.updateBody(id: note.id, body: v) }
             saveWork = w
@@ -442,6 +463,7 @@ struct LibraryDetail: View {
         }
         .onDisappear {
             saveWork?.cancel()
+            guard !note.locked else { return }
             NoteStore.shared.updateBody(id: note.id, body: text)
         }
     }

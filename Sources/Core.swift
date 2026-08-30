@@ -296,6 +296,10 @@ struct Note: Identifiable, Hashable {
 
     /// Second line onwards, collapsed — used as list subtitle.
     var preview: String {
+        // A locked note gives nothing away in a list, even while it is open
+        // somewhere else: unlocking it in the deck must not put its first line
+        // on a card in another window.
+        guard !locked else { return "" }
         let lines = body.split(whereSeparator: \.isNewline).map(String.init)
         let rest = lines.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
         return rest.count > 120 ? String(rest.prefix(120)) + "…" : rest
@@ -333,6 +337,26 @@ enum Tasks {
             .replacingOccurrences(of: "^(\\s*)[-*]\\s+\\[[xX]\\]\\s+",
                                   with: "$1" + donePrefix,
                                   options: [.regularExpression])
+    }
+
+    /// The stored format itself, once, from the ☐/☑ glyphs to real Markdown.
+    ///
+    /// Storing the glyphs meant every read and write crossed a translation
+    /// layer, and that layer was wrong: `fromMarkdown` anchors `^` without
+    /// `.anchorsMatchLines`, so importing a checklist converted only its first
+    /// line and left the rest as literal "- [ ]" text. Storing what the file
+    /// format actually says removes the layer and the bug together.
+    ///
+    /// Line-based on purpose: `toMarkdown` replaces the prefix anywhere it
+    /// appears, which would rewrite a ☐ that happens to sit mid-sentence.
+    static func glyphsToMarkdown(_ text: String) -> String {
+        text.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
+            let indent = line.prefix { $0 == " " || $0 == "\t" }
+            let rest = line.dropFirst(indent.count)
+            guard let mark = rest.first, mark == open || mark == done else { return String(line) }
+            let body = rest.dropFirst().drop { $0 == " " }
+            return "\(indent)- [\(mark == done ? "x" : " ")] \(body)"
+        }.joined(separator: "\n")
     }
 
     /// ☐/☑ out, Markdown task syntax in.

@@ -109,7 +109,9 @@ final class NoteStore: ObservableObject {
               let salt = notes[i].lockSalt, let blob = notes[i].sealed,
               let key = NoteLock.derive(password: password, salt: salt),
               let text = NoteLock.open(blob, with: key) else { return false }
-        notes[i].body = text
+        // Its glyphs were behind the password when the migration ran, so they
+        // are converted now that the text is in hand.
+        notes[i].body = Tasks.glyphsToMarkdown(text)
         sessionKeys[id] = key
         return true
     }
