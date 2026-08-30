@@ -35,6 +35,15 @@ final class NoteStore: ObservableObject {
 
     func note(id: String) -> Note? { notes.first { $0.id == id } }
 
+    /// What the library shows for each of its three filters.
+    func list(_ mode: LibraryMode) -> [Note] {
+        switch mode {
+        case .all:      return notes.sorted { $0.modified > $1.modified }
+        case .active:   return active
+        case .archived: return archived
+        }
+    }
+
     // MARK: Mutations
 
     @discardableResult

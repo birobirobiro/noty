@@ -183,9 +183,17 @@ struct FanColumn: View {
                 .padding(.top, layout.moreGap - layout.spacing)   // undo the lap
                 .staged(index: notes.count, revealed: revealed, onRight: onRight)
             }
-            PlusButton { (NSApp.delegate as? AppDelegate)?.newNote() }
-                .padding(.top, DeckGeom.plusGap - layout.spacing)
-                .staged(index: notes.count + 1, revealed: revealed, onRight: onRight)
+            DeckButton(icon: "plus", help: "New Note  ⌥⌘N") {
+                (NSApp.delegate as? AppDelegate)?.newNote()
+            }
+            .padding(.top, DeckGeom.plusGap - layout.spacing)
+            .staged(index: notes.count + 1, revealed: revealed, onRight: onRight)
+
+            DeckButton(icon: "list.bullet", help: "All Notes  ⌥⌘A") {
+                (NSApp.delegate as? AppDelegate)?.openAllNotes()
+            }
+            .padding(.top, 7)
+            .staged(index: notes.count + 2, revealed: revealed, onRight: onRight)
         }
         .frame(width: DeckGeom.tabWidth)
     }
@@ -365,13 +373,18 @@ struct EmptyTab: View {
     }
 }
 
-struct PlusButton: View {
+/// The round buttons that sit under the fan. Two of them now: writing a note
+/// and finding one are the two things you come to the deck for, and the second
+/// used to be reachable only from a right-click or a shortcut you had to know.
+struct DeckButton: View {
+    let icon: String
+    let help: String
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "plus")
+            Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.primary.opacity(0.75))
                 .frame(width: DeckGeom.plusSize, height: DeckGeom.plusSize)
@@ -383,7 +396,7 @@ struct PlusButton: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
-        .help("New Note  ⌥⌘N")
+        .help(help)
     }
 }
 

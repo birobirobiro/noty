@@ -3,9 +3,13 @@ import SwiftUI
 import Combine
 
 enum LibraryMode: String, CaseIterable, Identifiable {
-    case all = "All Notes"
-    case archive = "Archive"
+    case all = "All"
+    case active = "Active"
+    case archived = "Archived"
     var id: String { rawValue }
+
+    /// What the window calls itself when opened straight into this filter.
+    var windowTitle: String { self == .archived ? "Archive" : "All Notes" }
 }
 
 final class LibraryModel: ObservableObject {
@@ -43,14 +47,29 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
         window?.makeKeyAndOrderFront(nil)
     }
 
-    private func currentList() -> [Note] {
-        model.mode == .all ? NoteStore.shared.active : NoteStore.shared.archived
-    }
+    private func currentList() -> [Note] { NoteStore.shared.list(model.mode) }
 
     func windowWillClose(_ notification: Notification) {
         // Back to a menu-bar-less agent so the dock icon disappears again.
         DispatchQueue.main.async { NSApp.setActivationPolicy(.accessory) }
     }
+}
+
+// MARK: - The sheet it all sits on
+
+private extension Color {
+    /// A window full of coloured paper was being framed in system grey, which
+    /// made it read as a file browser rather than as the notes it holds.
+    static let sheet = Color(nsColor: NSColor(name: nil) { a in
+        a.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(calibratedWhite: 0.145, alpha: 1)
+            : NSColor(calibratedRed: 0.953, green: 0.945, blue: 0.929, alpha: 1)
+    })
+    static let sunken = Color(nsColor: NSColor(name: nil) { a in
+        a.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(calibratedWhite: 1, alpha: 0.08)
+            : NSColor(calibratedWhite: 0, alpha: 0.055)
+    })
 }
 
 // MARK: - View
@@ -59,13 +78,17 @@ struct LibraryView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var store = NoteStore.shared
 
-    private var source: [Note] { model.mode == .all ? store.active : store.archived }
+    /// Ticked rows. Export acts on these when there are any, on the whole
+    /// filtered list when there are not.
+    @State private var picked: Set<String> = []
+
+    private var source: [Note] { store.list(model.mode) }
 
     private var filtered: [Note] {
         let q = model.query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return source }
         return source.filter {
-            $0.title.lowercased().contains(q) || $0.body.lowercased().contains(q)
+            $0.displayTitle.lowercased().contains(q) || $0.body.lowercased().contains(q)
         }
     }
 
@@ -76,17 +99,13 @@ struct LibraryView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar
-                .frame(width: 300)
-                .background(.regularMaterial)
-            Divider()
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            sidebar.frame(width: 380)
+            Divider().opacity(0.5)
+            detail.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 720, minHeight: 420)
-        .onChange(of: model.mode) { _, _ in
-            model.selection = filtered.first?.id
-        }
+        .frame(minWidth: 760, minHeight: 460)
+        .background(Color.sheet)
+        .onChange(of: model.mode) { _, _ in model.selection = filtered.first?.id }
         .onAppear {
             if model.selection == nil || store.note(id: model.selection!) == nil {
                 model.selection = filtered.first?.id
@@ -97,108 +116,185 @@ struct LibraryView: View {
     // MARK: Sidebar
 
     private var sidebar: some View {
-        VStack(spacing: 0) {
-            Picker("", selection: $model.mode) {
-                ForEach(LibraryMode.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 12)
-            .padding(.top, 34)
-            .padding(.bottom, 8)
-
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                TextField("Search all notes", text: $model.query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                if !model.query.isEmpty {
-                    Button { model.query = "" } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 11))
-                    }.buttonStyle(.plain).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(model.mode.windowTitle)
+                    .font(.system(size: 16, weight: .bold))
+                Spacer()
+                Button { NoteStore.shared.create() } label: {
+                    Label("New", systemImage: "plus")
                 }
+                .controlSize(.small)
+                .help("New Note  ⌥⌘N")
+                Button { Transfer.importFiles() } label: {
+                    Label("Import…", systemImage: "square.and.arrow.down")
+                }
+                .controlSize(.small)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 26)
-            .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.06)))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 18)
+            .padding(.top, 34)
+            .padding(.bottom, 12)
+
+            search
+            chips
 
             if filtered.isEmpty {
-                VStack(spacing: 6) {
-                    Image(systemName: model.mode == .all ? "note.text" : "archivebox")
-                        .font(.system(size: 22)).foregroundStyle(.quaternary)
-                    Text(model.query.isEmpty
-                         ? (model.mode == .all ? "No notes yet" : "Nothing archived")
-                         : "No matches")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                empty
             } else {
-                List(filtered, selection: $model.selection) { note in
-                    row(note).tag(note.id)
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(filtered) { note in
+                            row(note)
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.selection = note.id }
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                 }
-                .listStyle(.sidebar)
-                .scrollContentBackground(.hidden)
             }
-
-            Divider()
-            HStack {
-                Button { NoteStore.shared.create() } label: {
-                    Label("New Note", systemImage: "plus")
-                        .font(.system(size: 11.5))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(filtered.count)")
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 30)
         }
     }
 
+    private var search: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            TextField("Search all notes", text: $model.query)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12.5))
+            if model.query.isEmpty {
+                Text("\(filtered.count) note\(filtered.count == 1 ? "" : "s")")
+                    .font(.system(size: 11)).foregroundStyle(.tertiary)
+            } else {
+                Button { model.query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 11))
+                }.buttonStyle(.plain).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 11)
+        .frame(height: 32)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.sunken))
+        .padding(.horizontal, 18)
+    }
+
+    private var chips: some View {
+        HStack(spacing: 6) {
+            ForEach(LibraryMode.allCases) { m in
+                let on = model.mode == m
+                Button { model.mode = m } label: {
+                    Text(m.rawValue)
+                        .font(.system(size: 11.5, weight: on ? .semibold : .regular))
+                        .foregroundStyle(on ? Color.primary : .secondary)
+                        .padding(.horizontal, 11)
+                        .frame(height: 24)
+                        .background(Capsule().fill(on ? Color.sunken : .clear))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+            if !picked.isEmpty {
+                Menu {
+                    exportItems(for: filtered.filter { picked.contains($0.id) })
+                } label: {
+                    Text("Export \(picked.count)").font(.system(size: 11))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+    }
+
+    private var empty: some View {
+        VStack(spacing: 7) {
+            Image(systemName: model.mode == .archived ? "archivebox" : "note.text")
+                .font(.system(size: 24)).foregroundStyle(.quaternary)
+            Text(model.query.isEmpty
+                 ? (model.mode == .archived ? "Nothing archived" : "No notes yet")
+                 : "No matches")
+                .font(.system(size: 12.5)).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private func row(_ note: Note) -> some View {
-        HStack(spacing: 9) {
+        let on = model.selection == note.id
+        return HStack(alignment: .top, spacing: 10) {
+            Button {
+                if picked.contains(note.id) { picked.remove(note.id) } else { picked.insert(note.id) }
+            } label: {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.28), lineWidth: 1.2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(picked.contains(note.id) ? Color.accentColor : .clear)
+                    )
+                    .frame(width: 15, height: 15)
+                    .overlay {
+                        if picked.contains(note.id) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 1)
+
             RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(note.palette.dash)
-                .frame(width: 3.5, height: 30)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(note.displayTitle)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .lineLimit(1)
-                HStack(spacing: 5) {
+                .frame(width: 3.5)
+                .frame(maxHeight: .infinity)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 7) {
+                    Text(note.displayTitle)
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(note.archived ? "ARCHIVED" : "ACTIVE")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.sunken))
                     Text(Fmt.ago(note.modified))
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
-                    if let p = note.taskProgress {
-                        Label("\(p.done)/\(p.total)",
-                              systemImage: p.done == p.total ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 9.5))
-                            .foregroundStyle(p.done == p.total ? Color.green : .secondary)
-                            .labelStyle(.titleAndIcon)
-                    }
-                    if !note.preview.isEmpty {
-                        Text(note.preview)
-                            .font(.system(size: 10)).foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                }
+                // The preview is set in the note's own hand: these are sticky
+                // notes, and the list should look like it holds some.
+                if !note.preview.isEmpty {
+                    Text(note.preview)
+                        .font(Font(Ink.body(11.5)))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
-            Spacer(minLength: 0)
         }
-        .padding(.vertical, 3)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(on ? Color.sunken : .clear))
         .contextMenu {
-            if note.archived {
-                Button("Restore") { NoteStore.shared.setArchived(id: note.id, false) }
-            } else {
-                Button("Archive") { NoteStore.shared.setArchived(id: note.id, true) }
+            Button(note.archived ? "Restore" : "Archive") {
+                NoteStore.shared.setArchived(id: note.id, !note.archived)
             }
             Divider()
             Button("Delete") { NoteStore.shared.delete(id: note.id) }
         }
+    }
+
+    @ViewBuilder
+    private func exportItems(for notes: [Note]) -> some View {
+        Button("Markdown (one file per note)…") { Transfer.export(.markdown, notes: notes) }
+        Button("Plain text (one file per note)…") { Transfer.export(.plainText, notes: notes) }
+        Button("Single document…") { Transfer.export(.singleFile, notes: notes) }
+        Button("Sticky archive (.stickies)…") { Transfer.export(.stickies, notes: notes) }
     }
 
     // MARK: Detail
@@ -214,13 +310,15 @@ struct LibraryView: View {
                 Text("Select a note").font(.system(size: 13)).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .textBackgroundColor))
         }
     }
 }
 
 // MARK: - Detail pane
 
+/// The note as a note. This pane used to be a full-bleed text field on the
+/// system's text background, which is the one place in the app where a sticky
+/// note stopped looking like one.
 struct LibraryDetail: View {
     let note: Note
     let bridge: EditorBridge
@@ -233,48 +331,62 @@ struct LibraryDetail: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Button { NoteStore.shared.cycleColor(id: note.id) } label: {
-                    Circle().fill(pal.dash).frame(width: 12, height: 12)
-                        .padding(3).contentShape(Circle())
+                Circle().fill(pal.dash).frame(width: 9, height: 9)
+                Text(note.archived ? "ARCHIVED" : "ACTIVE · IN THE DECK")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.7)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 10)
+                Button(note.archived ? "Restore" : "Archive") {
+                    NoteStore.shared.setArchived(id: note.id, !note.archived)
                 }
-                .buttonStyle(.plain)
-                .help("Cycle colour · right-click to pick")
-                .contextMenu {
-                    ForEach(Array(NoteColor.all.enumerated()), id: \.offset) { idx, c in
-                        Button(idx == note.color ? "✓ \(c.name)" : c.name) {
-                            NoteStore.shared.setColor(id: note.id, color: idx)
-                        }
-                    }
+                .controlSize(.small)
+                Menu("Export…") {
+                    Button("Markdown…") { Transfer.export(.markdown, notes: [note]) }
+                    Button("Plain text…") { Transfer.export(.plainText, notes: [note]) }
+                    Button("Single document…") { Transfer.export(.singleFile, notes: [note]) }
+                    Button("Sticky archive…") { Transfer.export(.stickies, notes: [note]) }
                 }
-
-                Text(note.displayTitle)
-                    .font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                Spacer()
-                Text("Edited \(Fmt.ago(note.modified))")
-                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
-
-                if note.archived {
-                    Button("Restore") { NoteStore.shared.setArchived(id: note.id, false) }
-                        .controlSize(.small)
-                } else {
-                    Button("Archive") { NoteStore.shared.setArchived(id: note.id, true) }
-                        .controlSize(.small)
-                }
-                Button {
-                    NoteStore.shared.delete(id: note.id)
-                } label: {
-                    Image(systemName: "trash").font(.system(size: 11))
-                }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                Button("Delete") { NoteStore.shared.delete(id: note.id) }
+                    .controlSize(.small)
+                    .foregroundStyle(Color(nsColor: .systemRed))
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 22)
             .padding(.top, 34)
-            .padding(.bottom, 10)
-            .background(pal.dash.opacity(0.12))
+            .padding(.bottom, 14)
 
-            NoteTextView(text: $text, ink: NSColor(pal.ink), bridge: bridge,
-                         autofocus: false, fontSize: Settings.noteFontSize)
-                .background(pal.paper)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(note.displayTitle)
+                        .font(.system(size: 15, weight: .bold))
+                        .lineLimit(1)
+                    Spacer(minLength: 10)
+                    Text("edited \(Fmt.ago(note.modified))")
+                        .font(.system(size: 10.5))
+                        .opacity(0.55)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 18)
+                .padding(.bottom, 8)
+
+                NoteTextView(text: $text, ink: NSColor(pal.ink), bridge: bridge,
+                             autofocus: false, fontSize: Settings.noteFontSize)
+                    .padding(.horizontal, 14)
+                    .frame(maxHeight: .infinity)
+
+                Divider().opacity(0.28).padding(.horizontal, 20)
+                Text("Created \(Fmt.stamp.string(from: note.created)) · Updated \(Fmt.ago(note.modified))")
+                    .font(.system(size: 10))
+                    .opacity(0.5)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 11)
+            }
+            .foregroundStyle(pal.ink)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(pal.paper))
+            .padding(.horizontal, 22)
+            .padding(.bottom, 22)
         }
         .onAppear { text = note.body }
         .onChange(of: text) { _, v in

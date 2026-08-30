@@ -163,7 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func openAllNotes() { LibraryWindow.shared.show(mode: .all) }
-    @objc func openArchive() { LibraryWindow.shared.show(mode: .archive) }
+    @objc func openArchive() { LibraryWindow.shared.show(mode: .archived) }
 
     @objc func toggleOverFullScreen() {
         Settings.showOverFullScreen.toggle()
