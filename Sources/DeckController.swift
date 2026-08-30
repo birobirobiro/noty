@@ -291,6 +291,11 @@ final class DeckController: NSObject {
         // ask once more after this turn of the loop.
         DispatchQueue.main.async { [weak self] in
             guard let self, self.model.state.expandedID != nil else { return }
+            // A locked note shows its gate, not its text. Grabbing first
+            // responder for the text view here pulled the keyboard away from
+            // the password field the moment it asked for it.
+            let store = NoteStore.shared
+            if let n = store.note(id: id), n.locked, !store.isRevealed(id) { return }
             self.model.bridge.focusText()
         }
     }

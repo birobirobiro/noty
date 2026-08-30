@@ -291,7 +291,9 @@ struct NoteEditorView: View {
     @State private var pass1 = ""
     @State private var pass2 = ""
     @State private var gateError = ""
-    @FocusState private var gateFocused: Bool
+
+    enum GateField { case first, second }
+    @FocusState private var gateFocus: GateField?
 
     private var pal: NoteColor { note.palette }
 
@@ -369,8 +371,10 @@ struct NoteEditorView: View {
             // The system field style paints its own white (or near-black)
             // box, which lands on a pastel sheet looking like a hole cut in
             // the paper. Dress it in the note's own ink instead.
-            gateField("Password", text: $pass1).focused($gateFocused)
-            if mode == .set { gateField("Repeat", text: $pass2) }
+            gateField("Password", text: $pass1).focused($gateFocus, equals: .first)
+            if mode == .set {
+                gateField("Repeat", text: $pass2).focused($gateFocus, equals: .second)
+            }
             if !gateError.isEmpty {
                 Text(gateError)
                     .font(.system(size: 10.5))
@@ -389,7 +393,19 @@ struct NoteEditorView: View {
             .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { gateFocused = true }
+        // A non-activating panel is not key at the instant the gate appears,
+        // and focus asked for before the window can take the keyboard is
+        // simply dropped. One turn of the loop later, it sticks.
+        .onAppear {
+            DispatchQueue.main.async { gateFocus = .first }
+        }
+        // SwiftUI's key-view loop does not carry Tab between these fields
+        // inside a borderless panel, so move it by hand.
+        .onKeyPress(.tab) {
+            guard mode == .set else { return .ignored }
+            gateFocus = (gateFocus == .first) ? .second : .first
+            return .handled
+        }
     }
 
     private func gateField(_ prompt: String, text: Binding<String>) -> some View {
