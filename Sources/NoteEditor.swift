@@ -305,11 +305,19 @@ struct NoteEditorView: View {
     @State private var pass2 = ""
     @State private var gateError = ""
     @State private var confirmingDelete = false
+    @State private var findCount = 0
+    @State private var findAt = 0
 
     enum GateField { case first, second }
     @FocusState private var gateFocus: GateField?
 
     private var pal: NoteColor { note.palette }
+
+    private func step(_ delta: Int) {
+        guard findCount > 0 else { return }
+        findAt = (findAt + delta + findCount) % findCount
+        NoteFind.run(deck.findQuery ?? "", index: findAt)
+    }
 
     private var live: Note { store.note(id: note.id) ?? note }
     /// Locked and not opened during this run: the text is not in memory at all.
@@ -333,7 +341,7 @@ struct NoteEditorView: View {
             scheduleSave(v)
         }
         .onChange(of: deck.findQuery) { _, q in
-            if q != nil { findFocused = true } else { deck.bridge.focusText() }
+            if q != nil { findFocused = true } else { NoteFind.clear(); NoteWindow.focusText(in: NoteWindow.shared.contentView) }
         }
         .onDisappear {
             confirmingDelete = false   // never reopen mid-question
@@ -517,7 +525,7 @@ struct NoteEditorView: View {
 
     private func closeGate() {
         gateMode = nil; pass1 = ""; pass2 = ""; gateError = ""
-        deck.bridge.focusText()
+        NoteWindow.focusText(in: NoteWindow.shared.contentView)
     }
 
     private var header: some View {
@@ -575,21 +583,28 @@ struct NoteEditorView: View {
                 .font(.system(size: 10)).foregroundStyle(pal.ink.opacity(0.45))
             TextField("Find in note", text: Binding(
                 get: { deck.findQuery ?? "" },
-                set: { deck.findQuery = $0; deck.bridge.recount($0) }))
+                set: { deck.findQuery = $0; findAt = 0; NoteFind.run($0) }))
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(pal.ink)
                 .focused($findFocused)
-                .onSubmit { deck.bridge.findNext(deck.findQuery ?? "") }
-            Text(deck.bridge.matchCount == 0 ? "—" : "\(deck.bridge.matchCount)")
+                .onSubmit { step(1) }
+            Text(findCount == 0 ? "—" : "\(findAt + 1)/\(findCount)")
                 .font(.system(size: 10.5).monospacedDigit())
                 .foregroundStyle(pal.ink.opacity(0.45))
-            Button { deck.bridge.findNext(deck.findQuery ?? "", forward: false) } label: {
+            Button { step(-1) } label: {
                 Image(systemName: "chevron.up").font(.system(size: 9, weight: .bold))
             }.buttonStyle(.plain).foregroundStyle(pal.ink.opacity(0.55))
-            Button { deck.bridge.findNext(deck.findQuery ?? "") } label: {
+            .accessibilityLabel("Previous match")
+            Button { step(1) } label: {
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
             }.buttonStyle(.plain).foregroundStyle(pal.ink.opacity(0.55))
+            .accessibilityLabel("Next match")
+        }
+        // The engine answers every query with how many it found.
+        .onReceive(NotificationCenter.default.publisher(for: .notyFindResults)) {
+            findCount = ($0.userInfo?["count"] as? Int) ?? 0
+            if findAt >= findCount { findAt = 0 }
         }
         .padding(.horizontal, 14)
         .frame(height: 28)

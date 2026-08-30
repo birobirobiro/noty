@@ -71,9 +71,24 @@ final class NoteHostingView<Content: View>: NSHostingView<Content> {
 }
 
 final class NoteWindow {
+    /// The engine builds its own NSTextView, so the old `wantsInitialFocus`
+    /// hook no longer reaches it. Walk to it and hand it the keyboard.
+    static func focusText(in view: NSView?) {
+        guard let view else { return }
+        func find(_ v: NSView) -> NSTextView? {
+            if let t = v as? NSTextView { return t }
+            for s in v.subviews { if let f = find(s) { return f } }
+            return nil
+        }
+        guard let tv = find(view), let window = tv.window else { return }
+        window.makeFirstResponder(tv)
+    }
+
     static let shared = NoteWindow()
     private var panel: NotePanel?
     private(set) var showing: String?
+
+    var contentView: NSView? { panel?.contentView }
 
     /// Opens `note` centred on `screen`, or brings the open one to that note.
     func show(_ note: Note, deck: DeckModel, controller: DeckController, on screen: NSScreen?) {
@@ -105,6 +120,9 @@ final class NoteWindow {
 
         p.alphaValue = 0
         p.makeKeyAndOrderFront(nil)
+        // Opening a note means wanting to write in it. One turn later, so the
+        // hosting view has built the engine's text view.
+        DispatchQueue.main.async { [weak p] in Self.focusText(in: p?.contentView) }
         NSAnimationContext.runAnimationGroup {
             $0.duration = 0.16
             p.animator().alphaValue = 1

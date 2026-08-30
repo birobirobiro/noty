@@ -296,7 +296,7 @@ final class DeckController: NSObject {
             // the password field the moment it asked for it.
             let store = NoteStore.shared
             if let n = store.note(id: id), n.locked, !store.isRevealed(id) { return }
-            self.model.bridge.focusText()
+            NoteWindow.focusText(in: NoteWindow.shared.contentView)
         }
     }
 
@@ -371,9 +371,9 @@ final class DeckController: NSObject {
             case "f":
                 self.model.findQuery = self.model.findQuery == nil ? "" : nil
                 return nil
-            case "t":
-                self.model.bridge.toggleTaskLine()
-                return nil
+            // No ⌘T: the engine's bus has no task action, and swallowing the
+            // chord to do nothing is worse than letting it through. Typing
+            // "- [ ] " makes a checkbox.
             case "p":
                 NoteStore.shared.togglePin(id: id)
                 return nil

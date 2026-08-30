@@ -134,3 +134,5 @@
 "List" = "Lista";
 "Quote" = "Cita";
 "Strikethrough" = "Tachado";
+"Previous match" = "Coincidencia anterior";
+"Next match" = "Coincidencia siguiente";

@@ -52,6 +52,23 @@ enum NoteFormat: String, CaseIterable {
 extension Notification.Name {
     static let notySelectionBold = Notification.Name("noty.selection.bold")
     static let notySelectionItalic = Notification.Name("noty.selection.italic")
+    /// ⌘F. The engine searches its OWN displayed text, which is the only place
+    /// the answer is right: a match's position on screen is not its position in
+    /// the source once markers are shrunk and links are drawn short.
+    static let notyFindQuery = Notification.Name("noty.find.query")
+    static let notyFindResults = Notification.Name("noty.find.results")
+    static let notyFindClear = Notification.Name("noty.find.clear")
+}
+
+/// ⌘F, asked of the engine rather than computed here.
+enum NoteFind {
+    static func run(_ query: String, index: Int = 0) {
+        NotificationCenter.default.post(name: .notyFindQuery, object: nil,
+                                        userInfo: ["query": query, "currentIndex": index])
+    }
+    static func clear() {
+        NotificationCenter.default.post(name: .notyFindClear, object: nil)
+    }
 }
 
 struct NoteMarkdownEditor: View {
@@ -91,7 +108,10 @@ struct NoteMarkdownEditor: View {
             applyBlockquoteRequest: NoteFormat.quote.request,
             applyUnorderedListRequest: NoteFormat.bullet.request,
             selectionBoldDidChange: .notySelectionBold,
-            selectionItalicDidChange: .notySelectionItalic
+            selectionItalicDidChange: .notySelectionItalic,
+            findClearHighlights: .notyFindClear,
+            findQuery: .notyFindQuery,
+            findResults: .notyFindResults
         )
         return config
     }
