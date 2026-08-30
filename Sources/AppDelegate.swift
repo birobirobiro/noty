@@ -1,14 +1,16 @@
 import AppKit
 import SwiftUI
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var deckManager: DeckManager!
+    private var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         buildMainMenu()
 
         deckManager = DeckManager()
+        buildStatusItem()
         UndoToast.shared.start()
 
         HotKeys.shared.register(
@@ -23,6 +25,135 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+
+    // MARK: The menu
+
+    /// Everything the app can do, in one place. The deck's right-click and the
+    /// status item both show this, so they cannot drift apart.
+    func makeMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.delegate = self
+        populate(menu)
+        return menu
+    }
+
+    /// Rebuilt every time it opens, so the ticks and the enabled states are
+    /// telling the truth rather than whatever they said last time.
+    func menuNeedsUpdate(_ menu: NSMenu) { populate(menu) }
+
+    private func populate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        menu.addItem(withTitle: "New Note", action: #selector(AppDelegate.newNote), keyEquivalent: "")
+        menu.addItem(withTitle: "All Notes", action: #selector(AppDelegate.openAllNotes), keyEquivalent: "")
+        menu.addItem(withTitle: "Archive", action: #selector(AppDelegate.openArchive), keyEquivalent: "")
+        menu.addItem(.separator())
+
+        let overFS = NSMenuItem(title: "Show over full-screen apps",
+                                action: #selector(AppDelegate.toggleOverFullScreen), keyEquivalent: "")
+        overFS.state = Settings.showOverFullScreen ? .on : .off
+        menu.addItem(overFS)
+
+        let styleItem = NSMenuItem(title: "Deck style", action: nil, keyEquivalent: "")
+        let styleMenu = NSMenu()
+        for s in DeckStyle.allCases {
+            let it = NSMenuItem(title: s.title, action: #selector(AppDelegate.setDeckStyle(_:)), keyEquivalent: "")
+            it.representedObject = s.rawValue
+            it.state = Settings.deckStyle == s ? .on : .off
+            styleMenu.addItem(it)
+        }
+        styleItem.submenu = styleMenu
+        menu.addItem(styleItem)
+
+        // One hand with a switch to turn it off became a choice of seven: the
+        // face a note is written in is most of how it reads.
+        let faceItem = NSMenuItem(title: "Note font", action: nil, keyEquivalent: "")
+        let faceMenu = NSMenu()
+        for f in Ink.faces {
+            let it = NSMenuItem(title: f.name, action: #selector(AppDelegate.setNoteFace(_:)),
+                                keyEquivalent: "")
+            it.representedObject = f.id
+            it.state = Settings.noteFace == f.id ? .on : .off
+            // Show each name in its own face, so the menu is the preview.
+            if let name = f.regular, let font = NSFont(name: name, size: 13) {
+                it.attributedTitle = NSAttributedString(string: f.name, attributes: [.font: font])
+            }
+            faceMenu.addItem(it)
+        }
+        faceItem.submenu = faceMenu
+        menu.addItem(faceItem)
+
+        let textItem = NSMenuItem(title: "Text size", action: nil, keyEquivalent: "")
+        let textMenu = NSMenu()
+        for entry in Settings.fontSizes {
+            let it = NSMenuItem(title: entry.name, action: #selector(AppDelegate.setFontSize(_:)),
+                                keyEquivalent: "")
+            it.representedObject = entry.size
+            it.state = abs(Settings.noteFontSize - entry.size) < 0.01 ? .on : .off
+            textMenu.addItem(it)
+        }
+        textItem.submenu = textMenu
+        menu.addItem(textItem)
+
+        let leftEdge = NSMenuItem(title: "Dock deck to left edge",
+                                  action: #selector(AppDelegate.toggleDeckEdge), keyEquivalent: "")
+        leftEdge.state = Settings.deckOnLeftEdge ? .on : .off
+        menu.addItem(leftEdge)
+
+        let updates = NSMenuItem(title: "Check for Updates…",
+                                 action: #selector(AppDelegate.checkForUpdates), keyEquivalent: "")
+        menu.addItem(updates)
+
+        let autoUpdate = NSMenuItem(title: "Check automatically",
+                                    action: #selector(AppDelegate.toggleAutoUpdates), keyEquivalent: "")
+        autoUpdate.state = Updater.shared.automaticallyChecks ? .on : .off
+        autoUpdate.isEnabled = Updater.available
+        menu.addItem(autoUpdate)
+        menu.addItem(.separator())
+
+        let login = NSMenuItem(title: "Launch at login",
+                               action: #selector(AppDelegate.toggleLaunchAtLogin), keyEquivalent: "")
+        login.state = Settings.launchAtLogin ? .on : .off
+        menu.addItem(login)
+        menu.addItem(.separator())
+
+        let exportItem = NSMenuItem(title: "Export", action: nil, keyEquivalent: "")
+        let exportMenu = NSMenu()
+        exportMenu.addItem(withTitle: "Markdown (one file per note)…",
+                           action: #selector(AppDelegate.exportMarkdown), keyEquivalent: "")
+        exportMenu.addItem(withTitle: "Plain text (one file per note)…",
+                           action: #selector(AppDelegate.exportPlainText), keyEquivalent: "")
+        exportMenu.addItem(withTitle: "Single document…",
+                           action: #selector(AppDelegate.exportSingleFile), keyEquivalent: "")
+        exportMenu.addItem(withTitle: "Sticky archive (.stickies)…",
+                           action: #selector(AppDelegate.exportStickies), keyEquivalent: "")
+        exportItem.submenu = exportMenu
+        menu.addItem(exportItem)
+        menu.addItem(withTitle: "Import…", action: #selector(AppDelegate.importStickies), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Quit Noty", action: #selector(AppDelegate.quit), keyEquivalent: "")
+
+        for item in menu.items where item.action != nil {
+            item.target = NSApp.delegate
+        }
+
+        for item in menu.items where item.action != nil {
+            item.target = NSApp.delegate
+        }
+    }
+
+    /// An app with no Dock icon needs somewhere to be found. Without this the
+    /// only way to reach settings or the note list was a right-click on the
+    /// deck, which you have to already know about.
+    private func buildStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.button?.image = NSImage(systemSymbolName: "note.text",
+                                     accessibilityDescription: "Noty")
+        item.button?.image?.isTemplate = true   // follows the menu bar, light or dark
+        item.button?.toolTip = "Noty"
+        item.menu = makeMenu()
+        statusItem = item
+    }
 
     // MARK: Actions
 
