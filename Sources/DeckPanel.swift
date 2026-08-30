@@ -37,7 +37,7 @@ struct DeckLayout {
         guard count > 0 else { return 0 }
         return CGFloat(count - 1) * pitch + itemHeight
             + (hasMore ? moreGap + moreHeight : 0)
-            + DeckGeom.plusGap + DeckGeom.plusSize
+            + DeckGeom.buttonsHeight
     }
 
     var top: CGFloat { max(12, (panelHeight - stackHeight) / 2) }
@@ -98,8 +98,15 @@ enum DeckGeom {
     static let chipGap: CGFloat = 6
     static let fanWidth: CGFloat = 50
     static let plusSize: CGFloat = 28
+    /// Between the two round buttons under the fan.
+    static let buttonGap: CGFloat = 7
     static let plusInset: CGFloat = 14
     static let plusGap: CGFloat = 12
+    /// The whole run of buttons under the fan — gap, new note, gap, all notes.
+    /// `stackHeight` has to know about every one of them: it is what centres
+    /// the deck and what decides whether it overflows, so a button the maths
+    /// does not know about is a button that falls off the panel.
+    static var buttonsHeight: CGFloat { plusGap + plusSize + buttonGap + plusSize }
     static let moreTabHeight: CGFloat = 34
 
     /// The deck may claim at most this much of the screen before tabs start shrinking.
