@@ -291,6 +291,7 @@ struct NoteEditorView: View {
     @State private var pass1 = ""
     @State private var pass2 = ""
     @State private var gateError = ""
+    @State private var confirmingDelete = false
 
     enum GateField { case first, second }
     @FocusState private var gateFocus: GateField?
@@ -323,6 +324,7 @@ struct NoteEditorView: View {
             if q != nil { findFocused = true } else { deck.bridge.focusText() }
         }
         .onDisappear {
+            confirmingDelete = false   // never reopen mid-question
             flush()
             // Shut a locked note behind us: the key and the text both leave
             // memory, so reopening asks for the password again.
@@ -350,6 +352,44 @@ struct NoteEditorView: View {
             }
             footer
         }
+        .overlay {
+            if confirmingDelete { deleteConfirm }
+        }
+    }
+
+    private var deleteConfirm: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "trash")
+                .font(.system(size: 20))
+                .foregroundStyle(pal.ink.opacity(0.55))
+            Text("Delete this note?")
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(pal.ink.opacity(0.9))
+            Text("You will have ten seconds to undo it.")
+                .font(.system(size: 10.5))
+                .foregroundStyle(pal.ink.opacity(0.55))
+            HStack(spacing: 8) {
+                Button("Cancel") { confirmingDelete = false }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(pal.ink.opacity(0.6))
+                Button("Delete") {
+                    confirmingDelete = false
+                    NoteStore.shared.delete(id: note.id)
+                    controller.collapse()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(nsColor: .systemRed))
+            }
+            .font(.system(size: 11.5))
+            .padding(.top, 2)
+        }
+        .padding(22)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(pal.paper)
+            .shadow(color: .black.opacity(0.28), radius: 18, y: 8))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .strokeBorder(pal.ink.opacity(0.12), lineWidth: 1))
+        .padding(.horizontal, 26)
     }
 
     // MARK: The lock
@@ -566,10 +606,7 @@ struct NoteEditorView: View {
                 NoteStore.shared.setArchived(id: note.id, true)
                 controller.collapse()
             }
-            footerButton("Delete") {
-                NoteStore.shared.delete(id: note.id)
-                controller.collapse()
-            }
+            footerButton("Delete") { confirmingDelete = true }
             footerButton("Close") { controller.collapse() }
         }
         .padding(.horizontal, 14)

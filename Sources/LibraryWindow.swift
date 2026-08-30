@@ -300,7 +300,7 @@ struct LibraryView: View {
                 NoteStore.shared.setArchived(id: note.id, !note.archived)
             }
             Divider()
-            Button("Delete") { NoteStore.shared.delete(id: note.id) }
+            Button("Delete", role: .destructive) { NoteStore.shared.delete(id: note.id) }
         }
     }
 
@@ -340,6 +340,7 @@ struct LibraryDetail: View {
 
     @State private var text = ""
     @State private var saveWork: DispatchWorkItem?
+    @State private var confirmingDelete = false
 
     private var pal: NoteColor { note.palette }
 
@@ -373,11 +374,17 @@ struct LibraryDetail: View {
                 .fixedSize()
 
                 Button {
-                    NoteStore.shared.delete(id: note.id)
+                    confirmingDelete = true
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
                 .tint(Color(nsColor: .systemRed))
+                .confirmationDialog("Delete this note?", isPresented: $confirmingDelete) {
+                    Button("Delete", role: .destructive) { NoteStore.shared.delete(id: note.id) }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("You will have ten seconds to undo it.")
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
