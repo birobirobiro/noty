@@ -192,7 +192,7 @@ struct FanColumn: View {
             DeckButton(icon: "list.bullet", help: "All Notes  ⌥⌘A") {
                 (NSApp.delegate as? AppDelegate)?.openAllNotes()
             }
-            .padding(.top, DeckGeom.buttonGap)
+            .padding(.top, DeckGeom.buttonGap - layout.spacing)   // undo the lap
             .staged(index: notes.count + 2, revealed: revealed, onRight: onRight)
         }
         .frame(width: DeckGeom.tabWidth)
