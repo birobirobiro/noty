@@ -102,6 +102,7 @@ struct LibraryView: View {
     /// Ticked rows. Export acts on these when there are any, on the whole
     /// filtered list when there are not.
     @State private var picked: Set<String> = []
+    @State private var dragging: String?
 
     private var source: [Note] { store.list(model.mode) }
 
@@ -170,6 +171,15 @@ struct LibraryView: View {
                         ForEach(filtered) { note in
                             row(note)
                                 .contentShape(Rectangle())
+                                // Reordering lives here, and the deck follows:
+                                // both read the same sort_order.
+                                .opacity(dragging == note.id ? 0.35 : 1)
+                                .onDrag {
+                                    dragging = note.id
+                                    return NSItemProvider(object: note.id as NSString)
+                                }
+                                .onDrop(of: [.text], delegate:
+                                    RowDrop(over: note.id, dragging: $dragging))
                                 // A whole-row Button would nest the checkbox
                                 // button inside it, which macOS handles badly;
                                 // the trait is what VoiceOver needs either way.
@@ -344,6 +354,25 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+}
+
+/// Reorders as the row is dragged over, so the list shows the result before
+/// the mouse is released rather than rearranging after the fact.
+private struct RowDrop: DropDelegate {
+    let over: String
+    @Binding var dragging: String?
+
+    func dropEntered(info: DropInfo) {
+        guard let moved = dragging, moved != over else { return }
+        NoteStore.shared.move(id: moved, before: over)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
 }
 
 // MARK: - Detail pane

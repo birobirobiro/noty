@@ -38,7 +38,9 @@ final class NoteStore: ObservableObject {
     /// What the library shows for each of its three filters.
     func list(_ mode: LibraryMode) -> [Note] {
         switch mode {
-        case .all:      return notes.sorted { $0.modified > $1.modified }
+        // By order, not by date: this is the list you reorder, and the deck
+        // reads the same field, so dragging here moves the tab there.
+        case .all:      return notes.sorted { $0.order < $1.order }
         case .active:   return active
         case .archived: return archived
         }

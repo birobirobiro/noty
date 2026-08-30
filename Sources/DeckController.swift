@@ -27,8 +27,11 @@ final class DeckModel: ObservableObject {
     @Published var showAll = false          // "+N more" opened into a scrolling list
     @Published var findQuery: String?       // nil = find bar hidden
     @Published var revealTick = 0           // bumped to restage the fan animation
-
-    /// Owns the NSTextView of the open note so ⌘F can drive it.
+    /// True while a tab is being dragged to a new position. The deck closes
+    /// itself when the pointer leaves a 70pt strip at the screen edge, and a
+    /// drag moves the pointer — so without this the deck shuts mid-gesture and
+    /// takes the drag with it.
+    @Published var reordering = false
 
     /// The deck shows tabs in every state except rest.
     var fanVisible: Bool { state != .rest }
@@ -218,7 +221,7 @@ final class DeckController: NSObject {
             let now = NSEvent.mouseLocation
             // The panel is wider than the deck, so the tracking area cannot tell us
             // the pointer has left the tabs; compare against the strip instead.
-            if self.model.state == .fan, !self.hotZone.contains(now) {
+            if self.model.state == .fan, !self.model.reordering, !self.hotZone.contains(now) {
                 self.collapse(); return
             }
             if abs(now.x - self.lastPointer.x) > 2 || abs(now.y - self.lastPointer.y) > 2 {
@@ -227,7 +230,7 @@ final class DeckController: NSObject {
             }
             let idle = Date().timeIntervalSince(self.lastActivity)
             switch self.model.state {
-            case .fan where idle > Settings.fanIdleTimeout:
+            case .fan where idle > Settings.fanIdleTimeout && !self.model.reordering:
                 self.collapse()
             case .expanded where idle > Settings.noteIdleTimeout && !self.openNoteIsPinned:
                 self.dismiss()
