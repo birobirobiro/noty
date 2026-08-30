@@ -62,7 +62,9 @@ enum Transfer {
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.prompt = "Export Here"
-        panel.message = "Choose a folder for \(notes.count) \(ext.uppercased()) file\(notes.count == 1 ? "" : "s")."
+        panel.message = String.localizedStringWithFormat(
+            NSLocalizedString("Choose a folder for %1$@ in %2$@ format.", comment: ""),
+            String.localizedStringWithFormat(NSLocalizedString("%d notes", comment: ""), notes.count), ext.uppercased())
         guard panel.runModal() == .OK, let dir = panel.url else { return }
 
         var used = Set<String>()
@@ -84,7 +86,10 @@ enum Transfer {
         }
         reveal(dir)
         if written < notes.count {
-            alert(NSLocalizedString("Export incomplete", comment: ""), NSLocalizedString("Wrote \(written) of \(notes.count) notes. See Console for details.", comment: ""))
+            alert(NSLocalizedString("Export incomplete", comment: ""),
+                  String.localizedStringWithFormat(
+                      NSLocalizedString("Wrote %1$d of %2$d notes. See Console for details.", comment: ""),
+                      written, notes.count))
         }
     }
 
@@ -105,7 +110,7 @@ enum Transfer {
             """
         }.joined(separator: "\n\n---\n\n")
 
-        let header = "# Noty export\n\n\(notes.count) notes · \(Fmt.stamp.string(from: Date()))\n\n---\n\n"
+        let header = "# Noty export\n\n" + String.localizedStringWithFormat(NSLocalizedString("%d notes", comment: ""), notes.count) + " · \(Fmt.stamp.string(from: Date()))\n\n---\n\n"
         write(header + doc, to: url)
     }
 
@@ -181,10 +186,12 @@ enum Transfer {
 
         let added = NoteStore.shared.ingest(incoming)
         if failed.isEmpty {
-            alert("Import complete", "Added \(added) note\(added == 1 ? "" : "s").")
+            alert(NSLocalizedString("Import complete", comment: ""), String.localizedStringWithFormat(NSLocalizedString("Added %d notes", comment: ""), added))
         } else {
             alert("Import finished with problems",
-                  "Added \(added) note\(added == 1 ? "" : "s"). Could not read: \(failed.joined(separator: ", "))")
+                  String.localizedStringWithFormat(
+                      NSLocalizedString("%1$@ Could not read: %2$@", comment: ""),
+                      String.localizedStringWithFormat(NSLocalizedString("Added %d notes", comment: ""), added), failed.joined(separator: ", ")))
         }
     }
 

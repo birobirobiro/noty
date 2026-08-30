@@ -314,7 +314,7 @@ struct MoreTab: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(TabPressStyle())
-        .help("\(count) more note\(count == 1 ? "" : "s")")
+        .help(String.localizedStringWithFormat(NSLocalizedString("%d more notes", comment: ""), count))
     }
 }
 

@@ -185,7 +185,7 @@ struct LibraryView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12.5))
             if model.query.isEmpty {
-                Text("\(filtered.count) note\(filtered.count == 1 ? "" : "s")")
+                Text(String.localizedStringWithFormat(NSLocalizedString("%d notes", comment: ""), filtered.count))
                     .font(.system(size: 11)).foregroundStyle(.tertiary)
             } else {
                 Button { model.query = "" } label: {

@@ -123,3 +123,6 @@
 "Language" = "Idioma";
 "Relaunch" = "Reiniciar";
 "Takes effect after relaunching." = "Só vale depois de reiniciar o app.";
+"%1$@ Could not read: %2$@" = "%1$@ Não foi possível ler: %2$@";
+"Choose a folder for %1$@ in %2$@ format." = "Escolha uma pasta para %1$@ no formato %2$@.";
+"Wrote %1$d of %2$d notes. See Console for details." = "Gravadas %1$d de %2$d notas. Veja o Console para detalhes.";
