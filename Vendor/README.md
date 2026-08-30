@@ -8,6 +8,15 @@ revision `08ff3c0`, licensed Apache-2.0 (`MarkdownEngine/LICENSE`).
 **Modified**, and every change is marked `NOTY MODIFICATION` so a future
 update can find them:
 
+- `Styling/MarkdownASTStyler.swift` — a hidden inline marker was only shrunk
+  to 0.1pt, which still draws a speck next to the word. It is drawn in
+  `NSColor.clear` too, matching what the engine already does for links and
+  code. Only applies while the caret is outside the token, so caret reveal is
+  unchanged.
+- `Services/MarkdownEditorServices.swift`, `TextView/ContextMenu.swift`,
+  `TextView/Coordinator/NativeTextViewCoordinator*.swift` — added a task-list
+  action (`applyTaskListRequest`), which is their own generic `applyList` with
+  a `- [ ] ` prefix.
 - `TextView/ContextMenu.swift` — `applyList` prefixed the whole selected block
   once instead of each line, so asking for a bullet across two lines produced
   `- one\ntwo`. It now applies their per-line logic to each line in turn.

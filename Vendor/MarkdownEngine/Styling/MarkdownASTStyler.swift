@@ -961,9 +961,21 @@ enum MarkdownASTStyler {
         }
     }
 
+    /// NOTY MODIFICATION: draw a hidden marker in nothing, as well as small.
+    ///
+    /// 0.1pt is not zero, and a `**` at 0.1pt still puts ink on the screen —
+    /// visible as a speck beside the word it emphasises, which is exactly what
+    /// hiding the markers was meant to avoid. Clearing the colour costs
+    /// nothing: the characters stay in the text storage, so selection, find,
+    /// copy and undo still see them, and this only runs when the caret is
+    /// outside the token, so the caret still reveals the syntax to edit it.
+    /// The engine already does this at the link and code paths (`:740`,
+    /// `:948`); this makes emphasis agree with them.
     private static func shrink(_ markers: [NSRange], ctx: Ctx, into attrs: inout [StyledRange]) {
         for marker in markers {
-            attrs.append((marker, [.font: ctx.inlineMarkerFont, .kern: -ctx.inlineMarkerFont.pointSize]))
+            attrs.append((marker, [.font: ctx.inlineMarkerFont,
+                                   .foregroundColor: NSColor.clear,
+                                   .kern: -ctx.inlineMarkerFont.pointSize]))
         }
     }
 
