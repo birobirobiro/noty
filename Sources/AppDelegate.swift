@@ -44,77 +44,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func populate(_ menu: NSMenu) {
         menu.removeAllItems()
+        // Doing, not configuring: everything that was a checkmark or a submenu
+        // of preferences now lives in the settings window, where a choice can
+        // show what it looks like instead of being a tick in a list.
         menu.addItem(withTitle: "New Note", action: #selector(AppDelegate.newNote), keyEquivalent: "")
         menu.addItem(withTitle: "All Notes", action: #selector(AppDelegate.openAllNotes), keyEquivalent: "")
         menu.addItem(withTitle: "Archive", action: #selector(AppDelegate.openArchive), keyEquivalent: "")
-        menu.addItem(.separator())
-
-        let overFS = NSMenuItem(title: "Show over full-screen apps",
-                                action: #selector(AppDelegate.toggleOverFullScreen), keyEquivalent: "")
-        overFS.state = Settings.showOverFullScreen ? .on : .off
-        menu.addItem(overFS)
-
-        let styleItem = NSMenuItem(title: "Deck style", action: nil, keyEquivalent: "")
-        let styleMenu = NSMenu()
-        for s in DeckStyle.allCases {
-            let it = NSMenuItem(title: s.title, action: #selector(AppDelegate.setDeckStyle(_:)), keyEquivalent: "")
-            it.representedObject = s.rawValue
-            it.state = Settings.deckStyle == s ? .on : .off
-            styleMenu.addItem(it)
-        }
-        styleItem.submenu = styleMenu
-        menu.addItem(styleItem)
-
-        // One hand with a switch to turn it off became a choice of seven: the
-        // face a note is written in is most of how it reads.
-        let faceItem = NSMenuItem(title: "Note font", action: nil, keyEquivalent: "")
-        let faceMenu = NSMenu()
-        for f in Ink.faces {
-            let it = NSMenuItem(title: f.name, action: #selector(AppDelegate.setNoteFace(_:)),
-                                keyEquivalent: "")
-            it.representedObject = f.id
-            it.state = Settings.noteFace == f.id ? .on : .off
-            // Show each name in its own face, so the menu is the preview.
-            if let name = f.regular, let font = NSFont(name: name, size: 13) {
-                it.attributedTitle = NSAttributedString(string: f.name, attributes: [.font: font])
-            }
-            faceMenu.addItem(it)
-        }
-        faceItem.submenu = faceMenu
-        menu.addItem(faceItem)
-
-        let textItem = NSMenuItem(title: "Text size", action: nil, keyEquivalent: "")
-        let textMenu = NSMenu()
-        for entry in Settings.fontSizes {
-            let it = NSMenuItem(title: entry.name, action: #selector(AppDelegate.setFontSize(_:)),
-                                keyEquivalent: "")
-            it.representedObject = entry.size
-            it.state = abs(Settings.noteFontSize - entry.size) < 0.01 ? .on : .off
-            textMenu.addItem(it)
-        }
-        textItem.submenu = textMenu
-        menu.addItem(textItem)
-
-        let leftEdge = NSMenuItem(title: "Dock deck to left edge",
-                                  action: #selector(AppDelegate.toggleDeckEdge), keyEquivalent: "")
-        leftEdge.state = Settings.deckOnLeftEdge ? .on : .off
-        menu.addItem(leftEdge)
-
-        let updates = NSMenuItem(title: "Check for Updates…",
-                                 action: #selector(AppDelegate.checkForUpdates), keyEquivalent: "")
-        menu.addItem(updates)
-
-        let autoUpdate = NSMenuItem(title: "Check automatically",
-                                    action: #selector(AppDelegate.toggleAutoUpdates), keyEquivalent: "")
-        autoUpdate.state = Updater.shared.automaticallyChecks ? .on : .off
-        autoUpdate.isEnabled = Updater.available
-        menu.addItem(autoUpdate)
-        menu.addItem(.separator())
-
-        let login = NSMenuItem(title: "Launch at login",
-                               action: #selector(AppDelegate.toggleLaunchAtLogin), keyEquivalent: "")
-        login.state = Settings.launchAtLogin ? .on : .off
-        menu.addItem(login)
         menu.addItem(.separator())
 
         let exportItem = NSMenuItem(title: "Export", action: nil, keyEquivalent: "")
@@ -131,16 +66,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(exportItem)
         menu.addItem(withTitle: "Import…", action: #selector(AppDelegate.importStickies), keyEquivalent: "")
         menu.addItem(.separator())
+
+        menu.addItem(withTitle: "Settings…", action: #selector(AppDelegate.openSettings), keyEquivalent: ",")
+        menu.addItem(withTitle: "About Noty", action: #selector(AppDelegate.showAbout), keyEquivalent: "")
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Noty", action: #selector(AppDelegate.quit), keyEquivalent: "")
 
         for item in menu.items where item.action != nil {
             item.target = NSApp.delegate
         }
-
-        for item in menu.items where item.action != nil {
-            item.target = NSApp.delegate
-        }
     }
+
+    @objc func openSettings() { SettingsWindow.shared.show() }
+
+    /// Settings reach the decks through here.
+    func refreshDecks() { deckManager.refreshAll() }
 
     /// An app with no Dock icon needs somewhere to be found. Without this the
     /// only way to reach settings or the note list was a right-click on the
@@ -250,6 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Noty", action: #selector(showAbout), keyEquivalent: "")
+        appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "New Note", action: #selector(newNote), keyEquivalent: "n")

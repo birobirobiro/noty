@@ -364,17 +364,11 @@ struct NoteEditorView: View {
                 .foregroundStyle(pal.ink.opacity(0.55))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 18)
-            SecureField("Password", text: $pass1)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 190)
-                .focused($gateFocused)
-                .onSubmit(submitGate)
-            if mode == .set {
-                SecureField("Repeat", text: $pass2)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 190)
-                    .onSubmit(submitGate)
-            }
+            // The system field style paints its own white (or near-black)
+            // box, which lands on a pastel sheet looking like a hole cut in
+            // the paper. Dress it in the note's own ink instead.
+            gateField("Password", text: $pass1).focused($gateFocused)
+            if mode == .set { gateField("Repeat", text: $pass2) }
             if !gateError.isEmpty {
                 Text(gateError)
                     .font(.system(size: 10.5))
@@ -387,12 +381,27 @@ struct NoteEditorView: View {
                 }
                 Button(mode == .unlock ? "Open" : (mode == .set ? "Lock" : "Remove")) { submitGate() }
                     .buttonStyle(.borderedProminent)
+                    .tint(pal.ink.opacity(0.75))
             }
             .font(.system(size: 11.5))
             .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { gateFocused = true }
+    }
+
+    private func gateField(_ prompt: String, text: Binding<String>) -> some View {
+        SecureField("", text: text, prompt: Text(prompt).foregroundColor(pal.ink.opacity(0.4)))
+            .textFieldStyle(.plain)
+            .font(.system(size: 12.5))
+            .foregroundStyle(pal.ink)
+            .padding(.horizontal, 10)
+            .frame(width: 200, height: 28)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(pal.ink.opacity(0.07)))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(pal.ink.opacity(0.2), lineWidth: 1))
+            .onSubmit(submitGate)
     }
 
     private func gateTitle(_ m: GateMode) -> String {

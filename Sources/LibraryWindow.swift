@@ -25,6 +25,10 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let model = LibraryModel()
 
+    /// So closing the settings window does not drop the Dock icon out from
+    /// under this one while it is still on screen.
+    var isOpen: Bool { window?.isVisible == true }
+
     func show(mode: LibraryMode) {
         model.mode = mode
         if model.selection == nil { model.selection = currentList().first?.id }
@@ -50,8 +54,11 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
     private func currentList() -> [Note] { NoteStore.shared.list(model.mode) }
 
     func windowWillClose(_ notification: Notification) {
-        // Back to a menu-bar-less agent so the dock icon disappears again.
-        DispatchQueue.main.async { NSApp.setActivationPolicy(.accessory) }
+        // Back to a menu-bar-less agent so the dock icon disappears again --
+        // unless settings is still up and needs it.
+        DispatchQueue.main.async {
+            if !SettingsWindow.shared.isOpen { NSApp.setActivationPolicy(.accessory) }
+        }
     }
 }
 
@@ -197,9 +204,11 @@ struct LibraryView: View {
                 Menu {
                     exportItems(for: filtered.filter { picked.contains($0.id) })
                 } label: {
-                    Text("Export \(picked.count)").font(.system(size: 11))
+                    Label("Export \(picked.count)", systemImage: "square.and.arrow.up")
                 }
-                .menuStyle(.borderlessButton)
+                .menuStyle(.button)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .fixedSize()
             }
         }
@@ -337,22 +346,36 @@ struct LibraryDetail: View {
                     .tracking(0.7)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 10)
-                Button(note.archived ? "Restore" : "Archive") {
+                Button {
                     NoteStore.shared.setArchived(id: note.id, !note.archived)
+                } label: {
+                    Label(note.archived ? "Restore" : "Archive",
+                          systemImage: note.archived ? "tray.and.arrow.up" : "archivebox")
                 }
-                .controlSize(.small)
-                Menu("Export…") {
+
+                // A borderless menu draws no chrome at all, so this read as a
+                // stray word sitting between two buttons.
+                Menu {
                     Button("Markdown…") { Transfer.export(.markdown, notes: [note]) }
                     Button("Plain text…") { Transfer.export(.plainText, notes: [note]) }
                     Button("Single document…") { Transfer.export(.singleFile, notes: [note]) }
                     Button("Sticky archive…") { Transfer.export(.stickies, notes: [note]) }
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
                 }
-                .menuStyle(.borderlessButton)
+                .menuStyle(.button)
                 .fixedSize()
-                Button("Delete") { NoteStore.shared.delete(id: note.id) }
-                    .controlSize(.small)
-                    .foregroundStyle(Color(nsColor: .systemRed))
+
+                Button {
+                    NoteStore.shared.delete(id: note.id)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .tint(Color(nsColor: .systemRed))
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .labelStyle(.titleAndIcon)
             .padding(.horizontal, 22)
             .padding(.top, 34)
             .padding(.bottom, 14)
