@@ -120,3 +120,6 @@
 "⌥⌘A  all notes" = "⌥⌘A  all notes";
 "⌥⌘L  archive" = "⌥⌘L  archive";
 "⌥⌘N  new note" = "⌥⌘N  new note";
+"Language" = "Language";
+"Relaunch" = "Relaunch";
+"Takes effect after relaunching." = "Takes effect after relaunching.";

@@ -120,3 +120,6 @@
 "⌥⌘A  all notes" = "⌥⌘A  todas las notas";
 "⌥⌘L  archive" = "⌥⌘L  archivo";
 "⌥⌘N  new note" = "⌥⌘N  nueva nota";
+"Language" = "Idioma";
+"Relaunch" = "Reiniciar";
+"Takes effect after relaunching." = "Se aplica al reiniciar la app.";

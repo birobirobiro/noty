@@ -57,6 +57,35 @@ enum Settings {
         set { d.set(newValue.rawValue, forKey: "deckStyle") }
     }
 
+    /// The language the app is read in. Empty means "whatever the Mac is set
+    /// to", which is what almost everyone wants and what macOS does by default.
+    ///
+    /// This writes AppleLanguages, the per-app override macOS itself uses (the
+    /// same thing System Settings ▸ General ▸ Language & Region ▸ Applications
+    /// writes). The bundle picks its .lproj at launch, so a change only shows
+    /// after a relaunch — the settings window says so and offers to do it.
+    static var language: String {
+        get { d.string(forKey: "notyLanguage") ?? "" }
+        set {
+            d.set(newValue, forKey: "notyLanguage")
+            if newValue.isEmpty {
+                d.removeObject(forKey: "AppleLanguages")
+            } else {
+                d.set([newValue], forKey: "AppleLanguages")
+            }
+        }
+    }
+
+    /// The languages the app actually ships, named in themselves — an endonym
+    /// is what someone looking for their own language will recognise, and it is
+    /// never translated.
+    static let languages: [(id: String, name: String)] = [
+        ("",      "System"),
+        ("en",    "English"),
+        ("pt-BR", "Português (Brasil)"),
+        ("es",    "Español"),
+    ]
+
     static var launchAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
         set {

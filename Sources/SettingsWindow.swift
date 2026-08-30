@@ -47,9 +47,22 @@ struct SettingsView: View {
     @State private var face = Settings.noteFace
     @State private var size = Settings.noteFontSize
     @State private var atLogin = Settings.launchAtLogin
+    @State private var language = Settings.language
+    @State private var languageChanged = false
     @State private var autoUpdate = Updater.shared.automaticallyChecks
 
     private func refresh() { (NSApp.delegate as? AppDelegate)?.refreshDecks() }
+
+    /// A bundle reads its .lproj once, at launch, so the only honest way to
+    /// show a new language is to start again. Open a fresh instance first,
+    /// then quit this one, so the deck is never gone from the screen.
+    private func relaunch() {
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: config) { _, _ in
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
+    }
 
     var body: some View {
         Form {
@@ -102,6 +115,31 @@ struct SettingsView: View {
             }
 
             Section("General") {
+                Picker("Language", selection: $language) {
+                    // Each name in its own language: that is what someone
+                    // scanning for theirs will recognise. "System" is first
+                    // because following the Mac is the right default.
+                    ForEach(Settings.languages, id: \.id) { lang in
+                        Text(lang.id.isEmpty ? String(localized: "System") : lang.name)
+                            .tag(lang.id)
+                    }
+                }
+                .onChange(of: language) { _, v in
+                    Settings.language = v
+                    languageChanged = true
+                }
+
+                if languageChanged {
+                    HStack {
+                        Text("Takes effect after relaunching.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Relaunch") { relaunch() }
+                            .controlSize(.small)
+                    }
+                }
+
                 Toggle("Launch at login", isOn: $atLogin)
                     .onChange(of: atLogin) { _, v in Settings.launchAtLogin = v }
 
