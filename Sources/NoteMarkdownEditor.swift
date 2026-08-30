@@ -10,7 +10,7 @@ import SwiftUI
 /// selection, find, copy and undo honest — displayed range and stored range
 /// are the same range.
 enum NoteFormat: String, CaseIterable {
-    case bold, italic, strikethrough, code, heading, quote, bullet
+    case bold, italic, strikethrough, code, heading, quote, bullet, task
 
     /// One notification per action. The engine subscribes to whatever names it
     /// is given, so the toolbar only has to post; none of the wrapping logic
@@ -26,6 +26,7 @@ enum NoteFormat: String, CaseIterable {
         case .heading:       return "textformat.size"
         case .quote:         return "text.quote"
         case .bullet:        return "list.bullet"
+        case .task:          return "checklist"
         }
     }
 
@@ -38,6 +39,7 @@ enum NoteFormat: String, CaseIterable {
         case .heading:       return "Heading"
         case .quote:         return "Quote"
         case .bullet:        return "List"
+        case .task:          return "Checklist"
         }
     }
 
@@ -110,6 +112,7 @@ struct NoteMarkdownEditor: View {
             applyInlineCodeRequest: NoteFormat.code.request,
             applyBlockquoteRequest: NoteFormat.quote.request,
             applyUnorderedListRequest: NoteFormat.bullet.request,
+            applyTaskListRequest: NoteFormat.task.request,
             selectionBoldDidChange: .notySelectionBold,
             selectionItalicDidChange: .notySelectionItalic,
             findClearHighlights: .notyFindClear,

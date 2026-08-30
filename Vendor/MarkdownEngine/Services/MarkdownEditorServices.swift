@@ -212,6 +212,9 @@ public struct MarkdownEditorBus: Sendable {
     public var applyUnorderedListRequest: Notification.Name?
     /// Posted by the host UI to request the engine apply ordered list styling.
     public var applyOrderedListRequest: Notification.Name?
+    /// NOTY MODIFICATION: task list. `applyList` is already generic over its
+    /// prefix, so this is the same action with "- [ ] ".
+    public var applyTaskListRequest: Notification.Name?
     /// Posted by the host UI to insert a Markdown link.
     /// Expected `userInfo["url"] as? String`.
     public var applyLinkRequest: Notification.Name?
@@ -266,6 +269,7 @@ public struct MarkdownEditorBus: Sendable {
         applyBlockquoteRequest: Notification.Name? = nil,
         applyUnorderedListRequest: Notification.Name? = nil,
         applyOrderedListRequest: Notification.Name? = nil,
+        applyTaskListRequest: Notification.Name? = nil,
         applyLinkRequest: Notification.Name? = nil,
         applyCodeBlockRequest: Notification.Name? = nil,
         applyHorizontalRuleRequest: Notification.Name? = nil,
@@ -289,6 +293,7 @@ public struct MarkdownEditorBus: Sendable {
         self.applyBlockquoteRequest = applyBlockquoteRequest
         self.applyUnorderedListRequest = applyUnorderedListRequest
         self.applyOrderedListRequest = applyOrderedListRequest
+        self.applyTaskListRequest = applyTaskListRequest
         self.applyLinkRequest = applyLinkRequest
         self.applyCodeBlockRequest = applyCodeBlockRequest
         self.applyHorizontalRuleRequest = applyHorizontalRuleRequest

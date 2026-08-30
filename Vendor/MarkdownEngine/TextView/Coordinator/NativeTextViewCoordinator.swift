@@ -365,6 +365,14 @@ public final class NativeTextViewCoordinator: NSObject, NSTextViewDelegate {
                 self?.handleUnorderedListNotification(notification)
             })
         }
+
+        // NOTY MODIFICATION
+        if let name = bus.applyTaskListRequest {
+            busObservers.append(NotificationCenter.default.addObserver(
+                forName: name, object: nil, queue: .main) { [weak self] notification in
+                self?.handleTaskListNotification(notification)
+            })
+        }
         if let name = bus.applyOrderedListRequest {
             busObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
                 self?.handleOrderedListNotification(notification)

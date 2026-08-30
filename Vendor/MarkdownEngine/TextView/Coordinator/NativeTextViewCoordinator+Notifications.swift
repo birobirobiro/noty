@@ -44,6 +44,11 @@ extension NativeTextViewCoordinator {
         didMarkdownBlockquote(nil)
     }
 
+    /// NOTY MODIFICATION
+    @objc func handleTaskListNotification(_ notification: Notification) {
+        didMarkdownTaskList(nil)
+    }
+
     @objc func handleUnorderedListNotification(_ notification: Notification) {
         didMarkdownUnorderedList(nil)
     }

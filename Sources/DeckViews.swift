@@ -97,6 +97,7 @@ struct PillView: View {
 // MARK: - Fan
 
 struct FanColumn: View {
+    @State private var dragging: String?
     @ObservedObject var deck: DeckModel
     unowned let controller: DeckController
     let notes: [Note]
@@ -158,6 +159,18 @@ struct FanColumn: View {
                     }
                 }
                 .staged(index: idx, revealed: revealed, onRight: onRight)
+                // Reordering. NoteStore.move has been here since the start
+                // with nothing calling it; this is what calls it.
+                .onDrag {
+                    dragging = note.id
+                    return NSItemProvider(object: note.id as NSString)
+                }
+                .onDrop(of: [.text], isTargeted: nil) { _ in
+                    guard let moved = dragging, moved != note.id else { return false }
+                    NoteStore.shared.move(id: moved, before: note.id)
+                    dragging = nil
+                    return true
+                }
             }
             if hiddenCount > 0 {
                 MoreTab(count: hiddenCount, height: layout.moreHeight, onRight: onRight) {

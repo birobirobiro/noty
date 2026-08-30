@@ -288,6 +288,11 @@ extension NativeTextViewWrapper.Coordinator {
         applyList(prefix: "1. ")
     }
 
+    /// NOTY MODIFICATION: a task is a list item that carries a checkbox.
+    @objc func didMarkdownTaskList(_ sender: Any?) {
+        applyList(prefix: "- [ ] ")
+    }
+
     @objc func didMarkdownBold(_ sender: Any?) {
         guard let tv = textView else { return }
         let range = tv.selectedRange()
