@@ -275,6 +275,13 @@ final class DeckController: NSObject {
         setState(.expanded(id))
         NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
+        // Belt and braces: the text view claims focus as it enters the window,
+        // but reopening a note SwiftUI has already built skips that moment, so
+        // ask once more after this turn of the loop.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.model.state.expandedID != nil else { return }
+            self.model.bridge.focusText()
+        }
     }
 
     /// Closing a note steps back to the deck — the tabs stay where they were.

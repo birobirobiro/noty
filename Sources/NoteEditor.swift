@@ -81,6 +81,25 @@ final class EditorBridge: ObservableObject {
 /// toggles it, Return carries the list on, and finished lines get struck through.
 final class TaskTextView: NSTextView {
 
+    /// Asked for the keyboard before it had a window to ask.
+    var wantsInitialFocus = false
+
+    /// The one moment when taking focus can actually work. `makeNSView` runs
+    /// while the view is still detached, so the old `tv.window?.makeFirstResponder`
+    /// there resolved `window` to nil and did nothing at all — quietly, because
+    /// of the `?`. A window arrives here, and a panel that is not key yet still
+    /// remembers the responder it was given.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard wantsInitialFocus, let window else { return }
+        wantsInitialFocus = false
+        DeckLog.line("note text entered a window — claiming focus")
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            window.makeFirstResponder(self)
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if toggleBox(at: point) { return }
@@ -176,9 +195,7 @@ struct NoteTextView: NSViewRepresentable {
         scroll.documentView = tv
         bridge.textView = tv
         Self.styleTasks(tv, ink: ink, size: fontSize)
-        if autofocus {
-            DispatchQueue.main.async { tv.window?.makeFirstResponder(tv) }
-        }
+        if autofocus { tv.wantsInitialFocus = true }
         return scroll
     }
 
