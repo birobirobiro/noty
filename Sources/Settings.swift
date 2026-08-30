@@ -29,7 +29,7 @@ enum Settings {
     static var noteFontSize: Double {
         get {
             let v = d.double(forKey: "noteFontSize")
-            return fontRange.contains(v) ? v : 13.5
+            return fontRange.contains(v) ? v : 15.5
         }
         set { d.set(min(max(newValue, fontRange.lowerBound), fontRange.upperBound),
                     forKey: "noteFontSize") }

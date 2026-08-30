@@ -33,7 +33,9 @@ struct NoteEditorView: View {
     enum GateField { case first, second }
     @FocusState private var gateFocus: GateField?
 
-    private var pal: NoteColor { note.palette }
+    /// The live row's palette, not the snapshot's: picking a colour writes
+    /// to the store, and a snapshot would keep the old paper until reopened.
+    private var pal: NoteColor { live.palette }
 
     private func step(_ delta: Int) {
         guard findCount > 0 else { return }
@@ -257,7 +259,8 @@ struct NoteEditorView: View {
                 .foregroundColor(pal.ink.opacity(0.45)))
                 .textFieldStyle(.plain)
                 .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(pal.ink.opacity(0.92))
+                .foregroundColor(pal.ink.opacity(0.92))
+                .tint(pal.ink)
                 .lineLimit(1)
                 .onSubmit { NoteStore.shared.setTitle(id: note.id, title: title) }
                 .onChange(of: title) { _, v in
@@ -279,7 +282,7 @@ struct NoteEditorView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(pal.ink.opacity(note.pinned ? 0.85 : 0.4))
-            .help(note.pinned ? "Unpin — ⌘P" : "Pin so it stays open  ⌘P")
+            .tip(note.pinned ? "Unpin — ⌘P" : "Pin so it stays open  ⌘P")
 
             Button { deck.findQuery = deck.findQuery == nil ? "" : nil } label: {
                 Image(systemName: "magnifyingglass")
@@ -289,7 +292,7 @@ struct NoteEditorView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(pal.ink.opacity(0.5))
-            .help("Find  ⌘F")
+            .tip("Find  ⌘F")
             Button {
                 gateMode = live.locked ? .remove : .set
                 pass1 = ""; pass2 = ""; gateError = ""
@@ -301,7 +304,7 @@ struct NoteEditorView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(pal.ink.opacity(live.locked ? 0.85 : 0.5))
-            .help(live.locked ? "Remove the password" : "Lock this note")
+            .tip(live.locked ? "Remove the password" : "Lock this note")
             .accessibilityLabel(live.locked ? "Remove the password" : "Lock this note")
             .disabled(sealed)
         }
@@ -359,27 +362,29 @@ struct NoteEditorView: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .help(c.name)
+                .tip(LocalizedStringKey(c.name), below: false)
             }
             Spacer(minLength: 8)
-            footerButton("Archive") {
+            footerButton("Archive", "archivebox") {
                 NoteStore.shared.setArchived(id: note.id, true)
                 controller.collapse()
             }
-            footerButton("Delete") { confirmingDelete = true }
-            footerButton("Close") { controller.collapse() }
+            footerButton("Delete", "trash", danger: true) { confirmingDelete = true }
+            footerButton("Close", "xmark") { controller.collapse() }
         }
         .padding(.horizontal, 14)
         .frame(height: 34)
     }
 
-    private func footerButton(_ title: String, action: @escaping () -> Void) -> some View {
+    private func footerButton(_ title: LocalizedStringKey, _ symbol: String,
+                              danger: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(pal.ink.opacity(0.72))
-                .padding(.horizontal, 8)
-                .frame(height: 20)
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(danger
+                    ? Color(nsColor: .systemRed).opacity(0.85)
+                    : pal.ink.opacity(0.72))
+                .frame(width: 26, height: 20)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(pal.ink.opacity(0.08))
@@ -387,6 +392,8 @@ struct NoteEditorView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .tip(title, below: false)
+        .accessibilityLabel(title)
     }
 
     // MARK: Autosave — 250 ms after typing stops

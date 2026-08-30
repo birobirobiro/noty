@@ -103,6 +103,7 @@ struct LibraryView: View {
     /// filtered list when there are not.
     @State private var picked: Set<String> = []
     @State private var dragging: String?
+    @State private var hovering: String?
 
     private var source: [Note] { store.list(model.mode) }
 
@@ -174,6 +175,7 @@ struct LibraryView: View {
                                 // Reordering lives here, and the deck follows:
                                 // both read the same sort_order.
                                 .opacity(dragging == note.id ? 0.35 : 1)
+                                .onHover { hovering = $0 ? note.id : nil }
                                 .onDrag {
                                     dragging = note.id
                                     return NSItemProvider(object: note.id as NSString)
@@ -264,6 +266,14 @@ struct LibraryView: View {
     private func row(_ note: Note) -> some View {
         let on = model.selection == note.id
         return HStack(alignment: .top, spacing: 10) {
+            // Nothing said these could be dragged. The grip appears under the
+            // pointer rather than sitting there permanently, so a list at rest
+            // stays quiet.
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .frame(width: 10)
+                .opacity(hovering == note.id ? 1 : 0)
             Button {
                 if picked.contains(note.id) { picked.remove(note.id) } else { picked.insert(note.id) }
             } label: {
@@ -386,12 +396,14 @@ struct LibraryDetail: View {
     @State private var text = ""
     @State private var saveWork: DispatchWorkItem?
     @State private var confirmingDelete = false
+    @State private var title = ""
+    @State private var titleWork: DispatchWorkItem?
     @State private var pass = ""
     @State private var unlockError = ""
     @FocusState private var passFocused: Bool
     @ObservedObject private var store = NoteStore.shared
 
-    private var pal: NoteColor { note.palette }
+    private var pal: NoteColor { (store.note(id: note.id) ?? note).palette }
 
     /// Unlocked, or never locked: either way its text may be shown and edited.
     private var readable: Bool { !note.locked || store.isRevealed(note.id) }
@@ -455,9 +467,19 @@ struct LibraryDetail: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(note.displayTitle)
+                    TextField("", text: $title, prompt: Text(note.displayTitle)
+                        .foregroundColor(pal.ink.opacity(0.45)))
+                        .textFieldStyle(.plain)
                         .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(pal.ink)
+                        .tint(pal.ink)
                         .lineLimit(1)
+                        .onChange(of: title) { _, v in
+                            titleWork?.cancel()
+                            let w = DispatchWorkItem { NoteStore.shared.setTitle(id: note.id, title: v) }
+                            titleWork = w
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: w)
+                        }
                     Spacer(minLength: 10)
                     Text("edited \(Fmt.ago(note.modified))")
                         .font(.system(size: 10.5))
@@ -519,7 +541,7 @@ struct LibraryDetail: View {
             .padding(.horizontal, 22)
             .padding(.bottom, 22)
         }
-        .onAppear { text = readable ? note.body : "" }
+        .onAppear { title = note.title; text = readable ? note.body : "" }
         .onChange(of: text) { _, v in
             guard readable else { return }
             saveWork?.cancel()

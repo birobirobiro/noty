@@ -170,7 +170,7 @@ struct NoteFormatBar: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(ink.opacity(lit(f) ? 0.95 : 0.5))
-                .help(f.help)
+                .tip(f.help)
                 .accessibilityLabel(f.help)
             }
             Spacer(minLength: 0)
@@ -184,5 +184,53 @@ struct NoteFormatBar: View {
         .onReceive(NotificationCenter.default.publisher(for: .notySelectionItalic)) {
             isItalic = ($0.userInfo?["isItalic"] as? Bool) ?? false
         }
+    }
+}
+
+// MARK: - Tooltips
+
+/// Our own, because the system's never appear here.
+///
+/// `.help()` is drawn by AppKit for the key window, and the deck's note is a
+/// non-activating panel that usually is not one — so every tooltip in this app
+/// was silently doing nothing. This draws inside the note instead.
+struct Tip: ViewModifier {
+    let text: LocalizedStringKey
+    var below = true
+    @State private var showing = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { hovering in
+                guard hovering else { showing = false; return }
+                // A beat of delay, so passing over a row of buttons does not
+                // strobe a label under each one.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    if NSEvent.pressedMouseButtons == 0 { showing = true }
+                }
+            }
+            .overlay(alignment: below ? .bottom : .top) {
+                if showing {
+                    Text(text)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.black.opacity(0.84)))
+                        .fixedSize()
+                        .offset(y: below ? 21 : -21)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                        .zIndex(20)
+                }
+            }
+            .animation(.easeOut(duration: 0.12), value: showing)
+    }
+}
+
+extension View {
+    func tip(_ text: LocalizedStringKey, below: Bool = true) -> some View {
+        modifier(Tip(text: text, below: below))
     }
 }
