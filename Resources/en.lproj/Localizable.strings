@@ -127,3 +127,10 @@
 "Choose a folder for %1$@ in %2$@ format." = "Choose a folder for %1$@ in %2$@ format.";
 "Wrote %1$d of %2$d notes. See Console for details." = "Wrote %1$d of %2$d notes. See Console for details.";
 "Open it from the deck to read it." = "Open it from the deck to read it.";
+"Bold" = "Bold";
+"Code" = "Code";
+"Heading" = "Heading";
+"Italic" = "Italic";
+"List" = "List";
+"Quote" = "Quote";
+"Strikethrough" = "Strikethrough";

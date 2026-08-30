@@ -345,9 +345,8 @@ struct NoteEditorView: View {
             if sealed || gateMode != nil {
                 gate
             } else {
-                NoteTextView(text: $text, ink: NSColor(pal.ink),
-                             bridge: deck.bridge, autofocus: true,
-                             fontSize: deck.fontSize)
+                NoteFormatBar(ink: pal.ink)
+                NoteMarkdownEditor(text: $text, note: note)
             }
             footer
         }
