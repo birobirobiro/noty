@@ -9,7 +9,16 @@ enum LibraryMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// What the window calls itself when opened straight into this filter.
-    var windowTitle: String { self == .archived ? "Archive" : "All Notes" }
+    var windowTitle: LocalizedStringKey { self == .archived ? "Archive" : "All Notes" }
+
+    /// The chip label. rawValue is a plain String and would ship untranslated.
+    var label: LocalizedStringKey {
+        switch self {
+        case .all: return "All"
+        case .active: return "Active"
+        case .archived: return "Archived"
+        }
+    }
 }
 
 final class LibraryModel: ObservableObject {
@@ -37,7 +46,7 @@ final class LibraryWindow: NSObject, NSWindowDelegate {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 580),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
-            w.title = "Noty"
+            w.title = NSLocalizedString("Noty", comment: "window title")
             w.titlebarAppearsTransparent = true
             w.isReleasedWhenClosed = false
             w.minSize = NSSize(width: 720, height: 420)
@@ -195,7 +204,7 @@ struct LibraryView: View {
             ForEach(LibraryMode.allCases) { m in
                 let on = model.mode == m
                 Button { model.mode = m } label: {
-                    Text(m.rawValue)
+                    Text(m.label)
                         .font(.system(size: 11.5, weight: on ? .semibold : .regular))
                         .foregroundStyle(on ? Color.primary : .secondary)
                         .padding(.horizontal, 11)

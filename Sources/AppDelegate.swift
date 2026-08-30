@@ -47,30 +47,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Doing, not configuring: everything that was a checkmark or a submenu
         // of preferences now lives in the settings window, where a choice can
         // show what it looks like instead of being a tick in a list.
-        menu.addItem(withTitle: "New Note", action: #selector(AppDelegate.newNote), keyEquivalent: "")
-        menu.addItem(withTitle: "All Notes", action: #selector(AppDelegate.openAllNotes), keyEquivalent: "")
-        menu.addItem(withTitle: "Archive", action: #selector(AppDelegate.openArchive), keyEquivalent: "")
+        menu.addItem(withTitle: NSLocalizedString("New Note", comment: ""), action: #selector(AppDelegate.newNote), keyEquivalent: "")
+        menu.addItem(withTitle: NSLocalizedString("All Notes", comment: ""), action: #selector(AppDelegate.openAllNotes), keyEquivalent: "")
+        menu.addItem(withTitle: NSLocalizedString("Archive", comment: ""), action: #selector(AppDelegate.openArchive), keyEquivalent: "")
         menu.addItem(.separator())
 
-        let exportItem = NSMenuItem(title: "Export", action: nil, keyEquivalent: "")
+        let exportItem = NSMenuItem(title: NSLocalizedString("Export", comment: ""), action: nil, keyEquivalent: "")
         let exportMenu = NSMenu()
-        exportMenu.addItem(withTitle: "Markdown (one file per note)…",
+        exportMenu.addItem(withTitle: NSLocalizedString("Markdown (one file per note)…", comment: ""),
                            action: #selector(AppDelegate.exportMarkdown), keyEquivalent: "")
-        exportMenu.addItem(withTitle: "Plain text (one file per note)…",
+        exportMenu.addItem(withTitle: NSLocalizedString("Plain text (one file per note)…", comment: ""),
                            action: #selector(AppDelegate.exportPlainText), keyEquivalent: "")
-        exportMenu.addItem(withTitle: "Single document…",
+        exportMenu.addItem(withTitle: NSLocalizedString("Single document…", comment: ""),
                            action: #selector(AppDelegate.exportSingleFile), keyEquivalent: "")
-        exportMenu.addItem(withTitle: "Sticky archive (.stickies)…",
+        exportMenu.addItem(withTitle: NSLocalizedString("Sticky archive (.stickies)…", comment: ""),
                            action: #selector(AppDelegate.exportStickies), keyEquivalent: "")
         exportItem.submenu = exportMenu
         menu.addItem(exportItem)
-        menu.addItem(withTitle: "Import…", action: #selector(AppDelegate.importStickies), keyEquivalent: "")
+        menu.addItem(withTitle: NSLocalizedString("Import…", comment: ""), action: #selector(AppDelegate.importStickies), keyEquivalent: "")
         menu.addItem(.separator())
 
-        menu.addItem(withTitle: "Settings…", action: #selector(AppDelegate.openSettings), keyEquivalent: ",")
-        menu.addItem(withTitle: "About Noty", action: #selector(AppDelegate.showAbout), keyEquivalent: "")
+        menu.addItem(withTitle: NSLocalizedString("Settings…", comment: ""), action: #selector(AppDelegate.openSettings), keyEquivalent: ",")
+        menu.addItem(withTitle: NSLocalizedString("About Noty", comment: ""), action: #selector(AppDelegate.showAbout), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Noty", action: #selector(AppDelegate.quit), keyEquivalent: "")
+        menu.addItem(withTitle: NSLocalizedString("Quit Noty", comment: ""), action: #selector(AppDelegate.quit), keyEquivalent: "")
 
         for item in menu.items where item.action != nil {
             item.target = NSApp.delegate
@@ -189,27 +189,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About Noty", action: #selector(showAbout), keyEquivalent: "")
-        appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        appMenu.addItem(withTitle: NSLocalizedString("About Noty", comment: ""), action: #selector(showAbout), keyEquivalent: "")
+        appMenu.addItem(withTitle: NSLocalizedString("Settings…", comment: ""), action: #selector(openSettings), keyEquivalent: ",")
+        appMenu.addItem(withTitle: NSLocalizedString("Check for Updates…", comment: ""), action: #selector(checkForUpdates), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "New Note", action: #selector(newNote), keyEquivalent: "n")
-        appMenu.addItem(withTitle: "All Notes", action: #selector(openAllNotes), keyEquivalent: "a")
-        appMenu.addItem(withTitle: "Archive", action: #selector(openArchive), keyEquivalent: "l")
+        // Held onto rather than found again by title further down: once these
+        // titles are translated, item(withTitle:) stops matching, the ⌥ mask
+        // below is never applied, and ⌘N / ⌘A / ⌘L quietly go back to
+        // shadowing typing in text fields — the exact thing it prevents.
+        let newItem = appMenu.addItem(withTitle: NSLocalizedString("New Note", comment: "menu"),
+                                      action: #selector(newNote), keyEquivalent: "n")
+        let allItem = appMenu.addItem(withTitle: NSLocalizedString("All Notes", comment: "menu"),
+                                      action: #selector(openAllNotes), keyEquivalent: "a")
+        let archiveItem = appMenu.addItem(withTitle: NSLocalizedString("Archive", comment: "menu"),
+                                          action: #selector(openArchive), keyEquivalent: "l")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Import…", action: #selector(importStickies), keyEquivalent: "i")
+        appMenu.addItem(withTitle: NSLocalizedString("Import…", comment: ""), action: #selector(importStickies), keyEquivalent: "i")
         appMenu.addItem(.separator())
-        let bigger = appMenu.addItem(withTitle: "Bigger Text", action: #selector(biggerText), keyEquivalent: "+")
+        let bigger = appMenu.addItem(withTitle: NSLocalizedString("Bigger Text", comment: ""), action: #selector(biggerText), keyEquivalent: "+")
         bigger.keyEquivalentModifierMask = [.control]
-        let smaller = appMenu.addItem(withTitle: "Smaller Text", action: #selector(smallerText), keyEquivalent: "-")
+        let smaller = appMenu.addItem(withTitle: NSLocalizedString("Smaller Text", comment: ""), action: #selector(smallerText), keyEquivalent: "-")
         smaller.keyEquivalentModifierMask = [.control]
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide Noty", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        appMenu.addItem(withTitle: "Quit Noty", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: NSLocalizedString("Hide Noty", comment: ""), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: NSLocalizedString("Quit Noty", comment: ""), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         // The three global shortcuts already carry ⌥; mirror that here so the menu
         // items do not shadow ⌘N / ⌘A / ⌘L inside text fields.
-        for title in ["New Note", "All Notes", "Archive"] {
-            appMenu.item(withTitle: title)?.keyEquivalentModifierMask = [.command, .option]
+        for item in [newItem, allItem, archiveItem] {
+            item.keyEquivalentModifierMask = [.command, .option]
         }
         for item in appMenu.items where item.action != nil
             && item.action != #selector(NSApplication.hide(_:))
@@ -221,14 +228,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let editItem = NSMenuItem()
         let edit = NSMenu(title: "Edit")
-        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: NSLocalizedString("Undo", comment: ""), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: NSLocalizedString("Redo", comment: ""), action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
-        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: NSLocalizedString("Cut", comment: ""), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: NSLocalizedString("Copy", comment: ""), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: NSLocalizedString("Paste", comment: ""), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: NSLocalizedString("Select All", comment: ""), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
 

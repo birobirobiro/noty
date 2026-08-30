@@ -365,7 +365,7 @@ enum Fmt {
     }()
 
     static func ago(_ d: Date) -> String {
-        if Date().timeIntervalSince(d) < 60 { return "just now" }
+        if Date().timeIntervalSince(d) < 60 { return NSLocalizedString("just now", comment: "recent timestamp") }
         return relative.localizedString(for: d, relativeTo: Date())
     }
 }

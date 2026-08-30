@@ -292,6 +292,10 @@ struct NoteEditorView: View {
     @State private var pass2 = ""
     @State private var gateError = ""
     @State private var confirmingDelete = false
+    /// Where the note has been dragged to, relative to the centre. The panel
+    /// covers the whole screen now, so this can go anywhere on it.
+    @State private var drag: CGSize = .zero
+    @State private var dragAnchor: CGSize = .zero
 
     enum GateField { case first, second }
     @FocusState private var gateFocus: GateField?
@@ -304,6 +308,7 @@ struct NoteEditorView: View {
 
     var body: some View {
         sheet
+            .offset(drag)
         .background(
             noteShape
                 .fill(LinearGradient(colors: [pal.paper, pal.paper.opacity(0.88)],
@@ -324,6 +329,7 @@ struct NoteEditorView: View {
             if q != nil { findFocused = true } else { deck.bridge.focusText() }
         }
         .onDisappear {
+            drag = .zero; dragAnchor = .zero
             confirmingDelete = false   // never reopen mid-question
             flush()
             // Shut a locked note behind us: the key and the text both leave
@@ -462,7 +468,7 @@ struct NoteEditorView: View {
             .onSubmit(submitGate)
     }
 
-    private func gateTitle(_ m: GateMode) -> String {
+    private func gateTitle(_ m: GateMode) -> LocalizedStringKey {
         switch m {
         case .unlock: return "This note is locked"
         case .set:    return "Put a password on this note"
@@ -470,7 +476,7 @@ struct NoteEditorView: View {
         }
     }
 
-    private func gateHint(_ m: GateMode) -> String {
+    private func gateHint(_ m: GateMode) -> LocalizedStringKey {
         switch m {
         case .unlock: return "The text is sealed with your password and cannot be recovered without it."
         case .set:    return "There is no way to reset this. Forget it and the note is gone for good."
@@ -554,6 +560,14 @@ struct NoteEditorView: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 32)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture()
+                .onChanged { drag = CGSize(width: dragAnchor.width + $0.translation.width,
+                                           height: dragAnchor.height + $0.translation.height) }
+                .onEnded { _ in dragAnchor = drag }
+        )
+        .onHover { $0 ? NSCursor.openHand.push() : NSCursor.pop() }
     }
 
     private var findBar: some View {

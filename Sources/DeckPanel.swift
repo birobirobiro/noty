@@ -8,7 +8,7 @@ enum DeckStyle: String, CaseIterable {
     case tabs      // labelled vertical tabs — the full deck
     case compact   // colour chips only — barely touches the screen
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .tabs: return "Labelled tabs"
         case .compact: return "Colour chips"

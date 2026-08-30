@@ -43,7 +43,7 @@ enum Transfer {
 
     static func export(_ format: Format, notes: [Note]) {
         guard !notes.isEmpty else {
-            alert("Nothing to export", "There are no notes yet.")
+            alert(NSLocalizedString("Nothing to export", comment: ""), NSLocalizedString("There are no notes yet.", comment: ""))
             return
         }
         NSApp.activate()
@@ -84,7 +84,7 @@ enum Transfer {
         }
         reveal(dir)
         if written < notes.count {
-            alert("Export incomplete", "Wrote \(written) of \(notes.count) notes. See Console for details.")
+            alert(NSLocalizedString("Export incomplete", comment: ""), NSLocalizedString("Wrote \(written) of \(notes.count) notes. See Console for details.", comment: ""))
         }
     }
 
