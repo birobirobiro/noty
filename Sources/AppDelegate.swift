@@ -132,9 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func biggerText()  { stepFontSize(by: 1.5) }
     @objc func smallerText() { stepFontSize(by: -1.5) }
 
-    @objc func setNoteFace(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        Settings.noteFace = id
+    @objc func setNoteFont(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        Settings.noteFontName = name
         deckManager.refreshAll()
     }
 

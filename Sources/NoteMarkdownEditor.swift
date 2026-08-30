@@ -99,7 +99,9 @@ struct NoteMarkdownEditor: View {
             isWikiLinkActive: $wikiActive,
             pendingInlineReplacement: $pendingReplacement,
             configuration: configuration,
-            fontName: Ink.face.regular ?? NSFont.systemFont(ofSize: 13).fontName,
+            // "" is his sentinel for the system font; the engine wants a real
+            // PostScript name either way.
+            fontName: Ink.face.body.isEmpty ? NSFont.systemFont(ofSize: 13).fontName : Ink.face.body,
             fontSize: Settings.noteFontSize,
             // Per-note undo stacks: switching notes and back must not let one
             // note's undo reach into another's text.

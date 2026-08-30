@@ -164,79 +164,67 @@ struct NoteColor {
 
 // MARK: - Type
 
-enum Ink {
-    /// The hands a note can be written in. Every one of these ships with macOS,
-    /// so nothing is downloaded and the app still works with no network at all.
-    /// `regular == nil` means a system face built from `design` instead.
-    struct Face: Identifiable, Hashable {
-        let id: String
-        let name: String
-        let regular: String?
-        let bold: String?
-        let design: NSFontDescriptor.SystemDesign
-        /// Handwriting faces read small at the same point size; even them up.
-        let bump: CGFloat
-    }
+/// One entry per face offered for note bodies.
+struct NoteFace {
+    let name: String          // shown in the menu
+    let body: String          // PostScript name, "" for the system font
+    let tab: String           // heavier cut used on the tab labels
+    let bump: CGFloat         // size nudge so faces look the same size as each other
+}
 
-    static let faces: [Face] = [
-        Face(id: "note",   name: "Noteworthy",   regular: "Noteworthy-Light",
-             bold: "Noteworthy-Bold",          design: .default,    bump: 1.5),
-        Face(id: "hand",   name: "Bradley Hand", regular: "BradleyHandITCTT-Bold",
-             bold: "BradleyHandITCTT-Bold",    design: .default,    bump: 1.5),
-        Face(id: "marker", name: "Marker Felt",  regular: "MarkerFelt-Thin",
-             bold: "MarkerFelt-Wide",          design: .default,    bump: 1.5),
-        Face(id: "chalk",  name: "Chalkboard",   regular: "ChalkboardSE-Light",
-             bold: "ChalkboardSE-Bold",        design: .default,    bump: 0.5),
-        Face(id: "system", name: "System",       regular: nil, bold: nil,
-             design: .default,    bump: 0),
-        Face(id: "serif",  name: "Serif",        regular: nil, bold: nil,
-             design: .serif,      bump: 0.5),
-        Face(id: "mono",   name: "Mono",         regular: nil, bold: nil,
-             design: .monospaced, bump: -0.5),
+enum Ink {
+    /// Faces that suit a note. Filtered to what is actually installed, so the
+    /// menu never offers something that would silently fall back.
+    static let allFaces: [NoteFace] = [
+        NoteFace(name: "System",       body: "",                     tab: "",                     bump: 0),
+        NoteFace(name: "Noteworthy",   body: "Noteworthy-Light",     tab: "Noteworthy-Bold",      bump: 1.5),
+        NoteFace(name: "Bradley Hand", body: "BradleyHandITCTT-Bold", tab: "BradleyHandITCTT-Bold", bump: 1.5),
+        NoteFace(name: "Marker Felt",  body: "MarkerFelt-Thin",      tab: "MarkerFelt-Wide",      bump: 1),
+        NoteFace(name: "Chalkboard",   body: "ChalkboardSE-Light",   tab: "ChalkboardSE-Bold",    bump: 0),
+        NoteFace(name: "Avenir Next",  body: "AvenirNext-Regular",   tab: "AvenirNext-DemiBold",  bump: 0),
+        NoteFace(name: "New York",     body: "NewYork-Regular",      tab: "NewYork-Semibold",     bump: 0),
+        NoteFace(name: "Georgia",      body: "Georgia",              tab: "Georgia-Bold",         bump: 0),
+        NoteFace(name: "Menlo",        body: "Menlo-Regular",        tab: "Menlo-Bold",           bump: -1),
     ]
 
-    static var face: Face {
-        faces.first { $0.id == Settings.noteFace } ?? faces[0]
+    static var faces: [NoteFace] {
+        allFaces.filter { $0.body.isEmpty || NSFont(name: $0.body, size: 12) != nil }
     }
 
-    private static func system(_ size: CGFloat, _ design: NSFontDescriptor.SystemDesign,
-                               weight: NSFont.Weight = .regular) -> NSFont {
-        let base = NSFont.systemFont(ofSize: size, weight: weight)
-        guard let d = base.fontDescriptor.withDesign(design) else { return base }
-        return NSFont(descriptor: d, size: size) ?? base
+    static var face: NoteFace {
+        let want = Settings.noteFontName
+        return faces.first { $0.body == want } ?? faces[0]
     }
 
-    /// The hand used on note bodies.
+    /// The hand (or face) note bodies are set in.
     static func body(_ size: CGFloat) -> NSFont {
         let f = face
-        guard let name = f.regular else { return system(size + f.bump, f.design) }
-        return NSFont(name: name, size: size + f.bump) ?? system(size, f.design)
+        guard !f.body.isEmpty, let font = NSFont(name: f.body, size: size + f.bump) else {
+            return .systemFont(ofSize: size)
+        }
+        return font
     }
 
-    // Tab labels are set in the same hand as the notes, a shade bolder so they
-    // hold up at this size and turned on their side.
+    // Tab labels use the same face a shade bolder, so they hold up turned on
+    // their side at this size.
     static let tabSize: CGFloat = 9.5
     static let tabTracking: CGFloat = 0.1
 
-    /// The bolder cut of the chosen hand, when the system actually has it.
-    private static var tabFace: String? {
-        guard let bold = face.bold else { return nil }
-        return NSFont(name: bold, size: tabSize) == nil ? nil : bold
-    }
-
     /// For measuring — layout sizes each tab's strip to the longest label.
     static var tabNSFont: NSFont {
-        if let name = tabFace { return NSFont(name: name, size: tabSize)! }
-        return system(9, face.design, weight: .semibold)
+        let f = face
+        guard !f.tab.isEmpty, let font = NSFont(name: f.tab, size: tabSize + f.bump) else {
+            return .systemFont(ofSize: 9, weight: .semibold)
+        }
+        return font
     }
 
     static var tabFont: Font {
-        if let name = tabFace { return .custom(name, size: tabSize) }
-        switch face.design {
-        case .serif:      return .system(size: 9, weight: .semibold, design: .serif)
-        case .monospaced: return .system(size: 9, weight: .semibold, design: .monospaced)
-        default:          return .system(size: 9, weight: .semibold)
+        let f = face
+        guard !f.tab.isEmpty, NSFont(name: f.tab, size: tabSize) != nil else {
+            return .system(size: 9, weight: .semibold)
         }
+        return .custom(f.tab, size: tabSize + f.bump)
     }
 }
 
@@ -250,6 +238,7 @@ struct Note: Identifiable, Hashable {
     var created: Date = Date()
     var modified: Date = Date()
     var archived: Bool = false
+    var pinned: Bool = false
     var order: Double = 0
     /// Set when the stored text would not decrypt. Such a note is shown as a
     /// warning and is never written back, so the ciphertext survives whatever

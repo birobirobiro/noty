@@ -230,7 +230,7 @@ final class DeckController: NSObject {
             switch self.model.state {
             case .fan where idle > Settings.fanIdleTimeout:
                 self.collapse()
-            case .expanded where idle > Settings.noteIdleTimeout:
+            case .expanded where idle > Settings.noteIdleTimeout && !self.openNoteIsPinned:
                 self.dismiss()
             default: break
             }
@@ -314,6 +314,13 @@ final class DeckController: NSObject {
         }
     }
 
+    /// True while the open note is pinned — it should survive anything the user
+    /// did not aim at it.
+    private var openNoteIsPinned: Bool {
+        guard let id = model.state.expandedID else { return false }
+        return NoteStore.shared.note(id: id)?.pinned ?? false
+    }
+
     /// Dismiss the whole deck, note and tabs together.
     func dismiss() {
         NoteWindow.shared.close()
@@ -367,6 +374,9 @@ final class DeckController: NSObject {
             case "t":
                 self.model.bridge.toggleTaskLine()
                 return nil
+            case "p":
+                NoteStore.shared.togglePin(id: id)
+                return nil
             default:
                 return event
             }
@@ -379,7 +389,8 @@ final class DeckController: NSObject {
         guard outsideMonitor == nil else { return }
         outsideMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            guard let self, self.model.state.expandedID != nil else { return }
+            guard let self, self.model.state.expandedID != nil,
+                  !self.openNoteIsPinned else { return }
             DispatchQueue.main.async { self.dismiss() }
         }
     }

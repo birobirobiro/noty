@@ -37,6 +37,10 @@ final class Store {
         exec("CREATE INDEX IF NOT EXISTS idx_notes_archived ON notes(archived, sort_order);")
         migrateTitles()
         if !hasColumn("lock_salt") { exec("ALTER TABLE notes ADD COLUMN lock_salt BLOB;") }
+        if !hasColumn("pinned") {
+            exec("ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;")
+            NSLog("Noty: migrated notes table — added pinned")
+        }
         migrateTaskGlyphs()
     }
 
@@ -134,7 +138,7 @@ final class Store {
     func load() -> [Note] {
         var out: [Note] = []
         var st: OpaquePointer?
-        let sql = "SELECT id,title,body,color,created,modified,archived,sort_order,title_enc,lock_salt FROM notes ORDER BY sort_order ASC;"
+        let sql = "SELECT id,title,body,color,created,modified,archived,sort_order,title_enc,lock_salt,pinned FROM notes ORDER BY sort_order ASC;"
         guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { return out }
         defer { sqlite3_finalize(st) }
         while sqlite3_step(st) == SQLITE_ROW {
@@ -166,6 +170,7 @@ final class Store {
             n.modified = Date(timeIntervalSince1970: sqlite3_column_double(st, 5))
             n.archived = sqlite3_column_int(st, 6) != 0
             n.order = sqlite3_column_double(st, 7)
+            n.pinned = sqlite3_column_int(st, 10) != 0
             out.append(n)
         }
         return out
@@ -190,13 +195,14 @@ final class Store {
             return
         }
         let sql = """
-        INSERT INTO notes (id,title,body,color,created,modified,archived,sort_order,title_enc,lock_salt)
-        VALUES (?,'',?,?,?,?,?,?,?,?)
+        INSERT INTO notes (id,title,body,color,created,modified,archived,sort_order,title_enc,lock_salt,pinned)
+        VALUES (?,'',?,?,?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET
           title='', title_enc=excluded.title_enc,
           body=excluded.body, color=excluded.color,
           modified=excluded.modified, archived=excluded.archived,
-          sort_order=excluded.sort_order, lock_salt=excluded.lock_salt;
+          sort_order=excluded.sort_order, lock_salt=excluded.lock_salt,
+          pinned=excluded.pinned;
         """
         var st: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { return }
@@ -221,6 +227,7 @@ final class Store {
         } else {
             sqlite3_bind_null(st, 9)
         }
+        sqlite3_bind_int(st, 10, n.pinned ? 1 : 0)
         if sqlite3_step(st) != SQLITE_DONE {
             NSLog("Noty: upsert failed — \(String(cString: sqlite3_errmsg(db)))")
         }

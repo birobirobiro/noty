@@ -205,24 +205,34 @@ struct NoteTextView: NSViewRepresentable {
             tv.string = text
             Self.styleTasks(tv, ink: ink, size: fontSize)
         }
-        if tv.textColor != ink || tv.font != Self.bodyFont(fontSize) {
+        let want = Self.bodyFont(fontSize)
+        if tv.textColor != ink || tv.font != want {
             tv.textColor = ink
             tv.insertionPointColor = ink
-            tv.font = Self.bodyFont(fontSize)
+            tv.font = want
             Self.styleTasks(tv, ink: ink, size: fontSize)
         }
         if bridge.textView !== tv { bridge.textView = tv }
     }
 
     /// Dim and strike through anything already ticked off.
+    /// Restyling touches the whole document, which happens on every keystroke.
+    /// Two things make that safe: the caret has to be put back afterwards, and
+    /// `typingAttributes` has to be refreshed — otherwise the next character is
+    /// inserted in the *previous* font and immediately rewritten, which reads as
+    /// the text jumping under the cursor after a font or size change.
     static func styleTasks(_ tv: NSTextView, ink: NSColor, size: CGFloat = 13.5) {
+        let font = bodyFont(size)
+        tv.typingAttributes = [.font: font, .foregroundColor: ink]
+
         guard let storage = tv.textStorage else { return }
         let full = NSRange(location: 0, length: storage.length)
         guard full.length > 0 else { return }
+        let caret = tv.selectedRange()
         storage.beginEditing()
         storage.removeAttribute(.strikethroughStyle, range: full)
         storage.addAttribute(.foregroundColor, value: ink, range: full)
-        storage.addAttribute(.font, value: bodyFont(size), range: full)
+        storage.addAttribute(.font, value: font, range: full)
         let ns = storage.string as NSString
         ns.enumerateSubstrings(in: full, options: .byLines) { sub, range, _, _ in
             guard let sub, Tasks.marker(of: sub) == Tasks.done else { return }
@@ -232,6 +242,9 @@ struct NoteTextView: NSViewRepresentable {
                                  value: ink.withAlphaComponent(0.45), range: range)
         }
         storage.endEditing()
+        let end = (storage.string as NSString).length
+        tv.setSelectedRange(NSRange(location: min(caret.location, end),
+                                    length: min(caret.length, end - min(caret.location, end))))
         tv.window?.invalidateCursorRects(for: tv)
     }
 
@@ -517,6 +530,17 @@ struct NoteEditorView: View {
             Text(savedAt.map { "Saved · \(Fmt.ago($0))" } ?? "Not saved")
                 .font(.system(size: 10))
                 .foregroundStyle(pal.ink.opacity(0.42))
+            Button { NoteStore.shared.togglePin(id: note.id) } label: {
+                Image(systemName: note.pinned ? "pin.fill" : "pin")
+                    .font(.system(size: 11, weight: .semibold))
+                    .rotationEffect(.degrees(note.pinned ? 0 : 32))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(pal.ink.opacity(note.pinned ? 0.85 : 0.4))
+            .help(note.pinned ? "Unpin — ⌘P" : "Pin so it stays open  ⌘P")
+
             Button { deck.bridge.toggleTaskLine() } label: {
                 Image(systemName: "checklist")
                     .font(.system(size: 11, weight: .semibold))

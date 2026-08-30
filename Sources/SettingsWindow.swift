@@ -44,7 +44,7 @@ struct SettingsView: View {
     @State private var style = Settings.deckStyle
     @State private var onLeft = Settings.deckOnLeftEdge
     @State private var overFullScreen = Settings.showOverFullScreen
-    @State private var face = Settings.noteFace
+    @State private var face = Settings.noteFontName
     @State private var size = Settings.noteFontSize
     @State private var atLogin = Settings.launchAtLogin
     @State private var language = Settings.language
@@ -87,14 +87,13 @@ struct SettingsView: View {
                 // Each name is set in its own face: the point of choosing a
                 // hand is what it looks like, so the list shows it.
                 Picker("Hand", selection: $face) {
-                    ForEach(Ink.faces) { f in
+                    ForEach(Ink.faces, id: \.body) { f in
                         Text(f.name)
-                            .font(f.regular.flatMap { NSFont(name: $0, size: 13) }.map(Font.init)
-                                  ?? .system(size: 13))
-                            .tag(f.id)
+                            .font(NSFont(name: f.body, size: 13).map(Font.init) ?? .system(size: 13))
+                            .tag(f.body)
                     }
                 }
-                .onChange(of: face) { _, v in Settings.noteFace = v; refresh() }
+                .onChange(of: face) { _, v in Settings.noteFontName = v; refresh() }
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {

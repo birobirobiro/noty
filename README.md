@@ -67,6 +67,7 @@ Inside a note:
 | `⌘.` | cycle its colour |
 | `⌘T` | turn the current line into a task, or strip the checkbox off |
 | `⌘⌫` | delete, with ten seconds to undo |
+| `⌘P` | pin the note so it stays open |
 | `⌃+` / `⌃-` | bigger / smaller note text |
 
 Standard editing (`⌘C` / `⌘V` / `⌘Z` / `⌘A`) works everywhere — the app builds a
@@ -97,6 +98,13 @@ import reads that back. All Notes shows a `done/total` count per note.
   This raises the panel to `.statusBar` level; `.floating` alone does not draw
   over a full-screen space.
 - **Autosave** 250 ms after you stop typing, and again on close.
+- **Pick the face and the size.** Right-click the pill → *Note font* offers the
+  installed faces that suit a note (a hand by default), and *Text size* or
+  `⌃+` / `⌃-` sets the size. Tab labels follow the same face, a weight bolder.
+- **Pin a note to keep it open.** The pin in a note's header (or `⌘P`) stops it
+  being dismissed by anything you did not aim at it — clicking away in another
+  app, or leaving it idle. Esc and Close still close it. Pinned tabs carry a dot,
+  and the pin is remembered.
 - **Closing a note steps back to the deck.** Esc, Close, archiving or deleting
   leaves the tabs where they were; only moving away from the edge puts the deck
   back to sleep. Clicking in another app dismisses the whole thing.
@@ -223,3 +231,14 @@ Set `NOTY_DEBUG_DECK=1` in the environment to trace deck state transitions on st
 - No licensing, trial, or update machinery.
 - Ad-hoc signed and not notarised, so Gatekeeper will want a right-click → Open
   the first time if the app is moved off this machine.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Do what you like with it; keep the copyright
+notice.
+
+Noty bundles [Sparkle](https://github.com/sparkle-project/Sparkle) (also MIT)
+for updates. Its notice is reproduced in
+[licenses/THIRD-PARTY.txt](licenses/THIRD-PARTY.txt) and copied into
+`Noty.app/Contents/Resources/`, so it travels with every DMG as its licence
+requires.

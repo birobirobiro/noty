@@ -6,13 +6,13 @@
     <description>Sticky notes that live at the edge of your screen.</description>
     <language>en</language>
     <item>
-      <title>1.0.5</title>
-      <pubDate>Sat, 29 Aug 2026 23:05:37 +0000</pubDate>
-      <sparkle:version>17</sparkle:version>
-      <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
+      <title>1.0.7</title>
+      <pubDate>Sun, 30 Aug 2026 04:03:48 +0000</pubDate>
+      <sparkle:version>26</sparkle:version>
+      <sparkle:shortVersionString>1.0.7</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<p>Keep the lean on the tabs, sit the open note square<br><br>An open note is being read and written in, so a tilt fights the text. The tabs<br>are what should look stuck on by hand. The note also loses the edge bleed that<br>went with its lean and sits flush against the screen edge again.<br><br>Screenshots, demo and site rebuilt to match.<br><br>Co-Authored-By: Claude Opus 5 (1M context) &lt;noreply@anthropic.com&gt;<br>Claude-Session: https://claude.ai/code/session_0121rEjp7UYPBnRHZ9N1dSUp</p>]]></description>
-      <enclosure url="https://github.com/aimen08/noty/releases/download/v1.0.5/Noty-1.0.5.dmg" type="application/octet-stream" sparkle:edSignature="oRKrFYl3sJtPogIm2S3jeafGhMmc06s5nEsXm8WseKaus20p9QSpN6lJPqjMBJ5hlYmdq6eQ+WfPceuJ4h+bAw==" length="1672909" />
+      <description><![CDATA[<p>Let a note be pinned so nothing implicit closes it<br><br>A pinned note ignores everything the user did not aim at it: clicking away in<br>another app, and the idle timeout. Esc, Close, archive and delete still work,<br>since those are deliberate.<br><br>- New `pinned` column, added by a checked migration rather than an<br>  attempt-and-ignore, so a real failure still surfaces in the log.<br>- Pin in the note header, ⌘P, and a Pin item on the tab&#x27;s context menu.<br>- Pinned tabs carry a dot, and the flag persists.<br><br>Co-Authored-By: Claude Opus 5 (1M context) &lt;noreply@anthropic.com&gt;<br>Claude-Session: https://claude.ai/code/session_0121rEjp7UYPBnRHZ9N1dSUp</p>]]></description>
+      <enclosure url="https://github.com/aimen08/noty/releases/download/v1.0.7/Noty-1.0.7.dmg" type="application/octet-stream" sparkle:edSignature="0mLeeAxJ+25GhHi3q9grSMBgBf/3CHwBfL7vWWoGvb8E309p6ON7+6z3fjTPT7wdo/krdhWzzjOsM8ZihYYlBw==" length="1676952" />
     </item>
   </channel>
 </rss>

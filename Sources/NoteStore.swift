@@ -140,6 +140,13 @@ final class NoteStore: ObservableObject {
         notes[i].body = ""
     }
 
+    /// Pinned notes stay put: nothing implicit closes them.
+    func togglePin(id: String) {
+        guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes[i].pinned.toggle()
+        store.upsert(notes[i])
+    }
+
     func cycleColor(id: String) {
         guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
         notes[i].color = (notes[i].color + 1) % NoteColor.all.count
