@@ -51,7 +51,7 @@ struct NoteEditorView: View {
         sheet
         .background(
             noteShape
-                .fill(LinearGradient(colors: [pal.paper, pal.paper.opacity(0.88)],
+                .fill(LinearGradient(colors: [pal.paper, pal.paperShade],
                                      startPoint: .top, endPoint: .bottom))
         )
         .clipShape(noteShape)
@@ -255,8 +255,15 @@ struct NoteEditorView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            TextField("", text: $title, prompt: Text(note.displayTitle)
-                .foregroundColor(pal.ink.opacity(0.45)))
+            TextField("", text: $title)
+                .overlay(alignment: .leading) {
+                    if title.isEmpty {
+                        Text(note.displayTitle)
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(pal.ink.opacity(0.45))
+                            .allowsHitTesting(false)
+                    }
+                }
                 .textFieldStyle(.plain)
                 .font(.system(size: 12.5, weight: .semibold))
                 .foregroundColor(pal.ink.opacity(0.92))

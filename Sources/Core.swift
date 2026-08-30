@@ -149,7 +149,15 @@ struct NoteColor {
     ]
 
     /// A touch darker at the foot of the sheet, the way paper catches light.
-    var paperShade: Color { paper.opacity(1) }
+    ///
+    /// Darker, not thinner: this was `paper.opacity(1)`, which does nothing,
+    /// and the gradient that wanted it reached for `opacity(0.88)` instead —
+    /// so the bottom of every note was 12% see-through and whatever sat behind
+    /// it read through the words.
+    var paperShade: Color {
+        let base = NSColor(paper).usingColorSpace(.deviceRGB) ?? .white
+        return Color(nsColor: base.blended(withFraction: 0.07, of: .black) ?? base)
+    }
 
     static func at(_ i: Int) -> NoteColor { all[((i % all.count) + all.count) % all.count] }
 

@@ -189,6 +189,39 @@ struct NoteFormatBar: View {
 
 // MARK: - Tooltips
 
+/// Reports hover regardless of whether this app is frontmost.
+///
+/// SwiftUI's `.onHover` installs a tracking area whose activation is scoped to
+/// the active application, and the deck is used *while another app is
+/// frontmost* — so it never fired here at all. `.activeAlways` is the option
+/// that says otherwise, and it has to be asked for by hand.
+struct HoverArea: NSViewRepresentable {
+    let changed: (Bool) -> Void
+
+    func makeNSView(context: Context) -> NSView { Tracker(changed) }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    final class Tracker: NSView {
+        private let changed: (Bool) -> Void
+        init(_ changed: @escaping (Bool) -> Void) {
+            self.changed = changed
+            super.init(frame: .zero)
+        }
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+        override func updateTrackingAreas() {
+            trackingAreas.forEach(removeTrackingArea)
+            addTrackingArea(NSTrackingArea(
+                rect: bounds,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: self))
+            super.updateTrackingAreas()
+        }
+        override func mouseEntered(with event: NSEvent) { changed(true) }
+        override func mouseExited(with event: NSEvent) { changed(false) }
+    }
+}
+
 /// Our own, because the system's never appear here.
 ///
 /// `.help()` is drawn by AppKit for the key window, and the deck's note is a
@@ -201,14 +234,14 @@ struct Tip: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onHover { hovering in
+            .background(HoverArea { hovering in
                 guard hovering else { showing = false; return }
                 // A beat of delay, so passing over a row of buttons does not
                 // strobe a label under each one.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     if NSEvent.pressedMouseButtons == 0 { showing = true }
                 }
-            }
+            })
             .overlay(alignment: below ? .bottom : .top) {
                 if showing {
                     Text(text)

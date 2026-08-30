@@ -199,11 +199,14 @@ extension NativeTextViewWrapper.Coordinator {
         while content.hasPrefix("#") { content.removeFirst() }
         content = content.trimmingCharacters(in: .whitespaces)
         let prefix = String(repeating: "#", count: level) + " "
+        // NOTY MODIFICATION: clicking the same level again takes it off, the
+        // way blockquote does. Without this the button only ever added.
+        let removing = rawLine.hasPrefix(prefix)
         // lineRange(for:) includes the trailing line terminator; preserve it so
         // applying a heading to a non-final line doesn't swallow the newline and
         // merge the line with the next one (mirrors applyList's suffix handling).
         let suffix = originalLine.hasSuffix("\n") ? "\n" : ""
-        let newLine = prefix + content + suffix
+        let newLine = (removing ? content : prefix + content) + suffix
         // `content` is a verbatim slice of the line — locate it so its styling,
         // and any wiki link inside it, survives the rewrite.
         let contentRange = (originalLine as NSString).range(of: content)
@@ -216,7 +219,8 @@ extension NativeTextViewWrapper.Coordinator {
             retaining: retained,
             at: (prefix as NSString).length
         ) else { return }
-        let newSel = NSRange(location: lineRange.location + prefix.count, length: content.count)
+        let newSel = NSRange(location: lineRange.location + (removing ? 0 : prefix.count),
+                             length: content.count)
         tv.setSelectedRange(newSel)
     }
 
@@ -243,14 +247,25 @@ extension NativeTextViewWrapper.Coordinator {
             starts.append(lr.location)
             i = max(NSMaxRange(lr), lr.location + 1)
         }
-        guard starts.count > 1 else { return applyListToLine(prefix: prefix) }
+        // One decision for the whole block: a selection where some lines are
+        // already bulleted should finish fully bulleted, not half-toggled.
+        let removing = starts.allSatisfy { start in
+            let line = nsText.substring(with: nsText.lineRange(for: NSRange(location: start, length: 0)))
+                .trimmingCharacters(in: .newlines)
+            return line.isEmpty || line.hasPrefix(prefix)
+        }
         for start in starts.reversed() {
             tv.setSelectedRange(NSRange(location: start, length: 0))
-            applyListToLine(prefix: prefix)
+            applyListToLine(prefix: prefix, removing: removing)
         }
     }
 
-    private func applyListToLine(prefix: String) {
+    /// NOTY MODIFICATION: `removing` makes this a toggle. The original
+    /// stripped the prefix and always put it back — the strip was there so
+    /// applying twice would not produce "- - item", not to turn it off — so a
+    /// second click on the bullet button did nothing. Blockquote in this same
+    /// file already toggles; this makes lists agree with it.
+    private func applyListToLine(prefix: String, removing: Bool = false) {
         guard let tv = textView else { return }
         let nsText = tv.string as NSString
         let selRange = tv.selectedRange()
@@ -261,7 +276,7 @@ extension NativeTextViewWrapper.Coordinator {
         if content.hasPrefix(prefix) {
             content = String(content.dropFirst(prefix.count))
         }
-        let newLine = prefix + content
+        let newLine = removing ? content : prefix + content
         let suffix = originalLine.hasSuffix("\n") ? "\n" : ""
         let replacement = newLine + suffix
         // See applyHeading: `content` survives verbatim, so its attributes must
@@ -276,7 +291,8 @@ extension NativeTextViewWrapper.Coordinator {
             retaining: retained,
             at: (prefix as NSString).length
         ) else { return }
-        let newSel = NSRange(location: startLine.location + prefix.count, length: content.count)
+        let newSel = NSRange(location: startLine.location + (removing ? 0 : prefix.count),
+                             length: content.count)
         tv.setSelectedRange(newSel)
     }
 

@@ -17,6 +17,10 @@ update can find them:
   `TextView/Coordinator/NativeTextViewCoordinator*.swift` — added a task-list
   action (`applyTaskListRequest`), which is their own generic `applyList` with
   a `- [ ] ` prefix.
+- `TextView/ContextMenu.swift` — `applyList` and `applyHeading` only ever
+  added their marker. Each stripped an existing one and put it straight back,
+  which stops "- - item" but means a second click does nothing. Both toggle
+  now, matching `didMarkdownBlockquote` in the same file, which already did.
 - `TextView/ContextMenu.swift` — `applyList` prefixed the whole selected block
   once instead of each line, so asking for a bullet across two lines produced
   `- one\ntwo`. It now applies their per-line logic to each line in turn.

@@ -467,8 +467,15 @@ struct LibraryDetail: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
-                    TextField("", text: $title, prompt: Text(note.displayTitle)
-                        .foregroundColor(pal.ink.opacity(0.45)))
+                    TextField("", text: $title)
+                        .overlay(alignment: .leading) {
+                            if title.isEmpty {
+                                Text(note.displayTitle)
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(pal.ink.opacity(0.45))
+                                    .allowsHitTesting(false)
+                            }
+                        }
                         .textFieldStyle(.plain)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(pal.ink)

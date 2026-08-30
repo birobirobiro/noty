@@ -30,6 +30,11 @@ final class NotePanel: NSPanel {
         // The whole card is the handle. Controls and the text view take their
         // own clicks first, so this never fights typing or a button.
         isMovableByWindowBackground = true
+        // Without this a panel that is not key receives no mouseMoved events,
+        // so SwiftUI's .onHover never fires and every hover affordance in the
+        // note — tooltips included — is dead. The deck is used while another
+        // app is frontmost, which is exactly when that bites.
+        acceptsMouseMovedEvents = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         animationBehavior = .none
