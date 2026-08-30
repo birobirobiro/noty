@@ -396,10 +396,23 @@ final class DeckController: NSObject {
         styleItem.submenu = styleMenu
         menu.addItem(styleItem)
 
-        let hand = NSMenuItem(title: "Handwritten note text",
-                              action: #selector(AppDelegate.toggleHandwriting), keyEquivalent: "")
-        hand.state = Settings.handwrittenBody ? .on : .off
-        menu.addItem(hand)
+        // One hand with a switch to turn it off became a choice of seven: the
+        // face a note is written in is most of how it reads.
+        let faceItem = NSMenuItem(title: "Note font", action: nil, keyEquivalent: "")
+        let faceMenu = NSMenu()
+        for f in Ink.faces {
+            let it = NSMenuItem(title: f.name, action: #selector(AppDelegate.setNoteFace(_:)),
+                                keyEquivalent: "")
+            it.representedObject = f.id
+            it.state = Settings.noteFace == f.id ? .on : .off
+            // Show each name in its own face, so the menu is the preview.
+            if let name = f.regular, let font = NSFont(name: name, size: 13) {
+                it.attributedTitle = NSAttributedString(string: f.name, attributes: [.font: font])
+            }
+            faceMenu.addItem(it)
+        }
+        faceItem.submenu = faceMenu
+        menu.addItem(faceItem)
 
         let textItem = NSMenuItem(title: "Text size", action: nil, keyEquivalent: "")
         let textMenu = NSMenu()

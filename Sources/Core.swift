@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import AppKit
 import CryptoKit
+import Security
 
 // MARK: - Paths
 
@@ -16,32 +17,113 @@ enum Paths {
     static var key: URL { support.appendingPathComponent("note.key") }
 }
 
-// MARK: - Crypto (AES-GCM for note bodies)
+// MARK: - Crypto (AES-GCM, master key in the Keychain)
 
+/// Three things matter here, and the old version got each of them wrong in a
+/// way that is quiet until it costs you something:
+///
+///  * the key lived in `note.key` beside `notes.db`, so anything that could
+///    read the notes could read the key sitting next to them — encryption that
+///    protects against nothing. It belongs in the Keychain.
+///  * every ciphertext was sealed with no associated data, so a blob could be
+///    moved between rows or between columns and would still decrypt happily.
+///  * a body that failed to decrypt came back as "", which shows an intact
+///    note as empty and lets the next autosave write that emptiness over
+///    ciphertext that was still perfectly good.
 enum Crypto {
-    private static let key: SymmetricKey = {
-        if let d = try? Data(contentsOf: Paths.key), d.count == 32 {
-            return SymmetricKey(data: d)
+    enum Failure: Error { case noKey, unreadable }
+
+    private static let service = "app.noty.notes"
+    private static let account = "master-key"
+
+    /// nil means the Keychain refused us on a fresh install: the app then
+    /// stores nothing rather than quietly falling back to something weaker.
+    static let key: SymmetricKey? = {
+        if let found = keychainRead(), found.count == 32 { return SymmetricKey(data: found) }
+
+        // A key written by an older build. Move it in, then take it off disk.
+        if let old = try? Data(contentsOf: Paths.key), old.count == 32 {
+            if keychainWrite(old) {
+                try? FileManager.default.removeItem(at: Paths.key)
+                NSLog("Noty: moved the note key into the Keychain")
+            } else {
+                // Refusing here would lock someone out of notes they can
+                // already read, for no gain — the key is on disk either way.
+                NSLog("Noty: Keychain unavailable, still using the key file")
+            }
+            return SymmetricKey(data: old)
         }
-        let k = SymmetricKey(size: .bits256)
-        let d = k.withUnsafeBytes { Data($0) }
-        try? d.write(to: Paths.key, options: [.atomic])
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600],
-                                               ofItemAtPath: Paths.key.path)
-        return k
+
+        let fresh = SymmetricKey(size: .bits256)
+        let raw = fresh.withUnsafeBytes { Data($0) }
+        guard keychainWrite(raw) else {
+            NSLog("Noty: Keychain unavailable — refusing to store notes")
+            return nil
+        }
+        return fresh
     }()
 
-    static func seal(_ text: String) -> Data {
-        guard let box = try? AES.GCM.seal(Data(text.utf8), using: key),
-              let combined = box.combined else { return Data() }
+    /// Binds a ciphertext to the row and the column it belongs to, so it
+    /// cannot be lifted from one note's body into another's title.
+    private static func aad(_ id: String, _ field: String) -> Data {
+        Data("noty/v1|\(id)|\(field)".utf8)
+    }
+
+    /// Bytes in, bytes out. A locked note's payload is itself ciphertext, so
+    /// decoding it as text on the way past would corrupt it.
+    static func seal(_ data: Data, id: String, field: String) throws -> Data {
+        guard let key else { throw Failure.noKey }
+        let box = try AES.GCM.seal(data, using: key, authenticating: aad(id, field))
+        guard let combined = box.combined else { throw Failure.unreadable }
         return combined
     }
 
-    static func open(_ data: Data) -> String {
-        guard !data.isEmpty,
-              let box = try? AES.GCM.SealedBox(combined: data),
-              let plain = try? AES.GCM.open(box, using: key) else { return "" }
-        return String(decoding: plain, as: UTF8.self)
+    static func open(_ data: Data, id: String, field: String) throws -> Data {
+        guard let key else { throw Failure.noKey }
+        if data.isEmpty { return Data() }
+        guard let box = try? AES.GCM.SealedBox(combined: data) else { throw Failure.unreadable }
+        if let plain = try? AES.GCM.open(box, using: key, authenticating: aad(id, field)) {
+            return plain
+        }
+        // Rows written before the field binding existed carry no associated
+        // data; they are re-sealed with it the next time the note is saved.
+        if let plain = try? AES.GCM.open(box, using: key) { return plain }
+        throw Failure.unreadable
+    }
+
+    static func seal(_ text: String, id: String, field: String) throws -> Data {
+        try seal(Data(text.utf8), id: id, field: field)
+    }
+
+    static func openText(_ data: Data, id: String, field: String) throws -> String {
+        String(decoding: try open(data, id: id, field: field), as: UTF8.self)
+    }
+
+    // MARK: Keychain
+
+    private static func keychainQuery() -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: service,
+         kSecAttrAccount as String: account]
+    }
+
+    private static func keychainRead() -> Data? {
+        var q = keychainQuery()
+        q[kSecReturnData as String] = true
+        q[kSecMatchLimit as String] = kSecMatchLimitOne
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess else { return nil }
+        return out as? Data
+    }
+
+    private static func keychainWrite(_ data: Data) -> Bool {
+        var q = keychainQuery()
+        q[kSecValueData as String] = data
+        // The key is only ever needed while someone is using this Mac, and it
+        // must not ride along to another device in a Keychain sync.
+        q[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        SecItemDelete(keychainQuery() as CFDictionary)
+        return SecItemAdd(q as CFDictionary, nil) == errSecSuccess
     }
 }
 
@@ -83,34 +165,78 @@ struct NoteColor {
 // MARK: - Type
 
 enum Ink {
-    /// The hand used on note bodies. Noteworthy Light is the closest thing macOS
-    /// ships to a neat felt-tip; the system face is the fallback and the setting.
+    /// The hands a note can be written in. Every one of these ships with macOS,
+    /// so nothing is downloaded and the app still works with no network at all.
+    /// `regular == nil` means a system face built from `design` instead.
+    struct Face: Identifiable, Hashable {
+        let id: String
+        let name: String
+        let regular: String?
+        let bold: String?
+        let design: NSFontDescriptor.SystemDesign
+        /// Handwriting faces read small at the same point size; even them up.
+        let bump: CGFloat
+    }
+
+    static let faces: [Face] = [
+        Face(id: "note",   name: "Noteworthy",   regular: "Noteworthy-Light",
+             bold: "Noteworthy-Bold",          design: .default,    bump: 1.5),
+        Face(id: "hand",   name: "Bradley Hand", regular: "BradleyHandITCTT-Bold",
+             bold: "BradleyHandITCTT-Bold",    design: .default,    bump: 1.5),
+        Face(id: "marker", name: "Marker Felt",  regular: "MarkerFelt-Thin",
+             bold: "MarkerFelt-Wide",          design: .default,    bump: 1.5),
+        Face(id: "chalk",  name: "Chalkboard",   regular: "ChalkboardSE-Light",
+             bold: "ChalkboardSE-Bold",        design: .default,    bump: 0.5),
+        Face(id: "system", name: "System",       regular: nil, bold: nil,
+             design: .default,    bump: 0),
+        Face(id: "serif",  name: "Serif",        regular: nil, bold: nil,
+             design: .serif,      bump: 0.5),
+        Face(id: "mono",   name: "Mono",         regular: nil, bold: nil,
+             design: .monospaced, bump: -0.5),
+    ]
+
+    static var face: Face {
+        faces.first { $0.id == Settings.noteFace } ?? faces[0]
+    }
+
+    private static func system(_ size: CGFloat, _ design: NSFontDescriptor.SystemDesign,
+                               weight: NSFont.Weight = .regular) -> NSFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight)
+        guard let d = base.fontDescriptor.withDesign(design) else { return base }
+        return NSFont(descriptor: d, size: size) ?? base
+    }
+
+    /// The hand used on note bodies.
     static func body(_ size: CGFloat) -> NSFont {
-        guard Settings.handwrittenBody else { return .systemFont(ofSize: size) }
-        return NSFont(name: "Noteworthy-Light", size: size + 1.5)
-            ?? NSFont(name: "BradleyHandITCTT-Bold", size: size + 1.5)
-            ?? .systemFont(ofSize: size)
+        let f = face
+        guard let name = f.regular else { return system(size + f.bump, f.design) }
+        return NSFont(name: name, size: size + f.bump) ?? system(size, f.design)
     }
 
     // Tab labels are set in the same hand as the notes, a shade bolder so they
     // hold up at this size and turned on their side.
     static let tabSize: CGFloat = 9.5
     static let tabTracking: CGFloat = 0.1
-    private static let tabFace = "Noteworthy-Bold"
 
-    private static var handAvailable: Bool {
-        Settings.handwrittenBody && NSFont(name: tabFace, size: tabSize) != nil
+    /// The bolder cut of the chosen hand, when the system actually has it.
+    private static var tabFace: String? {
+        guard let bold = face.bold else { return nil }
+        return NSFont(name: bold, size: tabSize) == nil ? nil : bold
     }
 
     /// For measuring — layout sizes each tab's strip to the longest label.
     static var tabNSFont: NSFont {
-        handAvailable ? NSFont(name: tabFace, size: tabSize)!
-                      : .systemFont(ofSize: 9, weight: .semibold)
+        if let name = tabFace { return NSFont(name: name, size: tabSize)! }
+        return system(9, face.design, weight: .semibold)
     }
 
     static var tabFont: Font {
-        handAvailable ? .custom(tabFace, size: tabSize)
-                      : .system(size: 9, weight: .semibold)
+        if let name = tabFace { return .custom(name, size: tabSize) }
+        switch face.design {
+        case .serif:      return .system(size: 9, weight: .semibold, design: .serif)
+        case .monospaced: return .system(size: 9, weight: .semibold, design: .monospaced)
+        default:          return .system(size: 9, weight: .semibold)
+        }
     }
 }
 
@@ -125,6 +251,18 @@ struct Note: Identifiable, Hashable {
     var modified: Date = Date()
     var archived: Bool = false
     var order: Double = 0
+    /// Set when the stored text would not decrypt. Such a note is shown as a
+    /// warning and is never written back, so the ciphertext survives whatever
+    /// went wrong (a restored database, a rotated key) long enough to fix it.
+    var unreadable: Bool = false
+    /// Per-note password salt. Non-nil means the note carries a second lock;
+    /// the salt itself is never shown and never leaves the process.
+    var lockSalt: Data? = nil
+    /// While a locked note is closed this holds the inner ciphertext, and
+    /// `body` stays empty. Opening it moves the text the other way.
+    var sealed: Data? = nil
+
+    var locked: Bool { lockSalt != nil }
 
     var palette: NoteColor { NoteColor.at(color) }
 
@@ -138,7 +276,10 @@ struct Note: Identifiable, Hashable {
         return clean.count > 60 ? String(clean.prefix(60)) + "…" : clean
     }
 
-    var displayTitle: String { title.isEmpty ? "New note" : title }
+    var displayTitle: String {
+        if locked { return "Locked note" }
+        return title.isEmpty ? "New note" : title
+    }
 
     /// Completed / total, or nil when the note holds no tasks.
     var taskProgress: (done: Int, total: Int)? {

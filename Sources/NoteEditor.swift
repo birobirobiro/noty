@@ -266,7 +266,22 @@ struct NoteEditorView: View {
     @State private var savedAt: Date?
     @FocusState private var findFocused: Bool
 
+    /// The note passed in is a snapshot. Locking changes the store, and the
+    /// gate has to notice, so read the live row for anything lock-related.
+    @ObservedObject private var store = NoteStore.shared
+
+    enum GateMode { case unlock, set, remove }
+    @State private var gateMode: GateMode?
+    @State private var pass1 = ""
+    @State private var pass2 = ""
+    @State private var gateError = ""
+    @FocusState private var gateFocused: Bool
+
     private var pal: NoteColor { note.palette }
+
+    private var live: Note { store.note(id: note.id) ?? note }
+    /// Locked and not opened during this run: the text is not in memory at all.
+    private var sealed: Bool { live.locked && !store.isRevealed(note.id) }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -281,14 +296,19 @@ struct NoteEditorView: View {
         .clipShape(noteShape)
         .overlay(noteShape.strokeBorder(Color.black.opacity(0.07), lineWidth: 0.5))
         .onAppear {
-            text = note.body
+            text = sealed ? "" : live.body
             savedAt = note.modified
         }
         .onChange(of: text) { _, v in scheduleSave(v) }
         .onChange(of: deck.findQuery) { _, q in
             if q != nil { findFocused = true } else { deck.bridge.focusText() }
         }
-        .onDisappear { flush() }
+        .onDisappear {
+            flush()
+            // Shut a locked note behind us: the key and the text both leave
+            // memory, so reopening asks for the password again.
+            if live.locked { store.conceal(id: note.id); text = "" }
+        }
     }
 
     /// Rounded where it leaves the deck, square where it meets the screen edge.
@@ -299,12 +319,110 @@ struct NoteEditorView: View {
     private var sheet: some View {
         VStack(spacing: 0) {
             header
-            if deck.findQuery != nil { findBar }
-            NoteTextView(text: $text, ink: NSColor(pal.ink),
-                         bridge: deck.bridge, autofocus: true,
-                         fontSize: deck.fontSize)
+            if deck.findQuery != nil && !sealed && gateMode == nil { findBar }
+            if sealed || gateMode != nil {
+                gate
+            } else {
+                NoteTextView(text: $text, ink: NSColor(pal.ink),
+                             bridge: deck.bridge, autofocus: true,
+                             fontSize: deck.fontSize)
+            }
             footer
         }
+    }
+
+    // MARK: The lock
+
+    private var gate: some View {
+        let mode = gateMode ?? .unlock
+        return VStack(spacing: 9) {
+            Image(systemName: mode == .unlock ? "lock.fill" : "lock.open.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(pal.ink.opacity(0.55))
+            Text(gateTitle(mode))
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(pal.ink.opacity(0.9))
+            Text(gateHint(mode))
+                .font(.system(size: 10.5))
+                .foregroundStyle(pal.ink.opacity(0.55))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 18)
+            SecureField("Password", text: $pass1)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 190)
+                .focused($gateFocused)
+                .onSubmit(submitGate)
+            if mode == .set {
+                SecureField("Repeat", text: $pass2)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 190)
+                    .onSubmit(submitGate)
+            }
+            if !gateError.isEmpty {
+                Text(gateError)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Color(nsColor: .systemRed))
+            }
+            HStack(spacing: 8) {
+                if mode != .unlock {
+                    Button("Cancel") { closeGate() }.buttonStyle(.plain)
+                        .foregroundStyle(pal.ink.opacity(0.6))
+                }
+                Button(mode == .unlock ? "Open" : (mode == .set ? "Lock" : "Remove")) { submitGate() }
+                    .buttonStyle(.borderedProminent)
+            }
+            .font(.system(size: 11.5))
+            .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { gateFocused = true }
+    }
+
+    private func gateTitle(_ m: GateMode) -> String {
+        switch m {
+        case .unlock: return "This note is locked"
+        case .set:    return "Put a password on this note"
+        case .remove: return "Remove the password"
+        }
+    }
+
+    private func gateHint(_ m: GateMode) -> String {
+        switch m {
+        case .unlock: return "The text is sealed with your password and cannot be recovered without it."
+        case .set:    return "There is no way to reset this. Forget it and the note is gone for good."
+        case .remove: return "The note goes back to being stored the ordinary way."
+        }
+    }
+
+    private func submitGate() {
+        let mode = gateMode ?? .unlock
+        switch mode {
+        case .unlock:
+            guard store.unlock(id: note.id, password: pass1) else {
+                gateError = "Wrong password."; pass1 = ""; return
+            }
+            text = store.note(id: note.id)?.body ?? ""
+            closeGate()
+        case .set:
+            guard pass1.count >= 4 else { gateError = "At least four characters."; return }
+            guard pass1 == pass2 else { gateError = "The two do not match."; pass2 = ""; return }
+            flush()   // the text on screen is what gets sealed
+            guard store.lock(id: note.id, password: pass1) else {
+                gateError = "Could not lock this note."; return
+            }
+            closeGate()
+        case .remove:
+            guard store.removeLock(id: note.id, password: pass1) else {
+                gateError = "Wrong password."; pass1 = ""; return
+            }
+            text = store.note(id: note.id)?.body ?? ""
+            closeGate()
+        }
+    }
+
+    private func closeGate() {
+        gateMode = nil; pass1 = ""; pass2 = ""; gateError = ""
+        deck.bridge.focusText()
     }
 
     /// The note's own tab, carried along so it reads as growing out of the deck.
@@ -363,6 +481,19 @@ struct NoteEditorView: View {
             .buttonStyle(.plain)
             .foregroundStyle(pal.ink.opacity(0.5))
             .help("Find  ⌘F")
+            Button {
+                gateMode = live.locked ? .remove : .set
+                pass1 = ""; pass2 = ""; gateError = ""
+            } label: {
+                Image(systemName: live.locked ? "lock.fill" : "lock")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(pal.ink.opacity(live.locked ? 0.85 : 0.5))
+            .help(live.locked ? "Remove the password" : "Lock this note")
+            .disabled(sealed)
         }
         .padding(.horizontal, 14)
         .frame(height: 32)

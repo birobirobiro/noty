@@ -4,8 +4,13 @@ import Combine
 
 private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
-/// SQLite-backed note storage. Bodies are AES-GCM sealed; title/colour/dates stay
-/// plaintext so lists can render without unsealing every row.
+/// SQLite-backed note storage. Titles and bodies are both AES-GCM sealed.
+///
+/// Leaving titles in the clear made the lists cheaper to draw, but a note's
+/// title is usually the part that gives it away — "Senha do banco", a client's
+/// name — so the database still told anyone reading it what every note was
+/// about. Unsealing a title is a few microseconds; the whole list costs less
+/// than a frame.
 final class Store {
     private var db: OpaquePointer?
 
@@ -30,6 +35,47 @@ final class Store {
         );
         """)
         exec("CREATE INDEX IF NOT EXISTS idx_notes_archived ON notes(archived, sort_order);")
+        migrateTitles()
+        if !hasColumn("lock_salt") { exec("ALTER TABLE notes ADD COLUMN lock_salt BLOB;") }
+    }
+
+    /// Adds the sealed-title column and seals whatever the old plaintext one
+    /// still holds. Runs once; afterwards `title` is left empty on every row.
+    private func migrateTitles() {
+        guard !hasColumn("title_enc") else { return }
+        exec("ALTER TABLE notes ADD COLUMN title_enc BLOB;")
+        var rows: [(String, String)] = []
+        var st: OpaquePointer?
+        if sqlite3_prepare_v2(db, "SELECT id,title FROM notes WHERE title <> '';", -1, &st, nil) == SQLITE_OK {
+            while sqlite3_step(st) == SQLITE_ROW {
+                let id = String(cString: sqlite3_column_text(st, 0))
+                let title = sqlite3_column_text(st, 1).map { String(cString: $0) } ?? ""
+                rows.append((id, title))
+            }
+        }
+        sqlite3_finalize(st)
+        for (id, title) in rows {
+            guard let sealed = try? Crypto.seal(title, id: id, field: "title") else { continue }
+            var up: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "UPDATE notes SET title_enc=?, title='' WHERE id=?;", -1, &up, nil) == SQLITE_OK else { continue }
+            _ = sealed.withUnsafeBytes { raw in
+                sqlite3_bind_blob(up, 1, raw.baseAddress, Int32(sealed.count), SQLITE_TRANSIENT)
+            }
+            sqlite3_bind_text(up, 2, id, -1, SQLITE_TRANSIENT)
+            sqlite3_step(up)
+            sqlite3_finalize(up)
+        }
+        if !rows.isEmpty { NSLog("Noty: sealed \(rows.count) title(s) that were stored in the clear") }
+    }
+
+    private func hasColumn(_ name: String) -> Bool {
+        var st: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "PRAGMA table_info(notes);", -1, &st, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(st) }
+        while sqlite3_step(st) == SQLITE_ROW {
+            if let c = sqlite3_column_text(st, 1), String(cString: c) == name { return true }
+        }
+        return false
     }
 
     deinit { if let db { sqlite3_close_v2(db) } }
@@ -47,17 +93,33 @@ final class Store {
     func load() -> [Note] {
         var out: [Note] = []
         var st: OpaquePointer?
-        let sql = "SELECT id,title,body,color,created,modified,archived,sort_order FROM notes ORDER BY sort_order ASC;"
+        let sql = "SELECT id,title,body,color,created,modified,archived,sort_order,title_enc,lock_salt FROM notes ORDER BY sort_order ASC;"
         guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { return out }
         defer { sqlite3_finalize(st) }
         while sqlite3_step(st) == SQLITE_ROW {
             var n = Note()
             n.id = String(cString: sqlite3_column_text(st, 0))
-            n.title = sqlite3_column_text(st, 1).map { String(cString: $0) } ?? ""
+            if let blob = sqlite3_column_blob(st, 8) {
+                let len = Int(sqlite3_column_bytes(st, 8))
+                do { n.title = try Crypto.openText(Data(bytes: blob, count: len), id: n.id, field: "title") }
+                catch { n.unreadable = true }
+            } else {
+                // Not migrated yet (or written by an older build).
+                n.title = sqlite3_column_text(st, 1).map { String(cString: $0) } ?? ""
+            }
+            if let salt = sqlite3_column_blob(st, 9) {
+                n.lockSalt = Data(bytes: salt, count: Int(sqlite3_column_bytes(st, 9)))
+            }
             if let blob = sqlite3_column_blob(st, 2) {
                 let len = Int(sqlite3_column_bytes(st, 2))
-                n.body = Crypto.open(Data(bytes: blob, count: len))
+                do {
+                    let payload = try Crypto.open(Data(bytes: blob, count: len), id: n.id, field: "body")
+                    // A locked note's payload is the inner ciphertext. It is
+                    // carried as bytes and stays shut until a password opens it.
+                    if n.locked { n.sealed = payload } else { n.body = String(decoding: payload, as: UTF8.self) }
+                } catch { n.unreadable = true }
             }
+            if n.unreadable { n.body = ""; n.sealed = nil }
             n.color = Int(sqlite3_column_int(st, 3))
             n.created = Date(timeIntervalSince1970: sqlite3_column_double(st, 4))
             n.modified = Date(timeIntervalSince1970: sqlite3_column_double(st, 5))
@@ -71,28 +133,53 @@ final class Store {
     // MARK: Writes
 
     func upsert(_ n: Note) {
+        // A note we could not decrypt is on screen as a warning, not as text.
+        // Writing it back would seal that emptiness over ciphertext that is
+        // still intact — the one mistake here that cannot be undone.
+        guard !n.unreadable else {
+            NSLog("Noty: refusing to overwrite unreadable note \(n.id)")
+            return
+        }
+        // Locked: the inner ciphertext goes to disk, and the plain text never
+        // does. Unlocked: the text itself, sealed once.
+        let payload = n.locked ? (n.sealed ?? Data()) : Data(n.body.utf8)
+        guard let sealedBody = try? Crypto.seal(payload, id: n.id, field: "body"),
+              let sealedTitle = try? Crypto.seal(n.title, id: n.id, field: "title") else {
+            NSLog("Noty: no key — note \(n.id) not saved")
+            return
+        }
         let sql = """
-        INSERT INTO notes (id,title,body,color,created,modified,archived,sort_order)
-        VALUES (?,?,?,?,?,?,?,?)
+        INSERT INTO notes (id,title,body,color,created,modified,archived,sort_order,title_enc,lock_salt)
+        VALUES (?,'',?,?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET
-          title=excluded.title, body=excluded.body, color=excluded.color,
+          title='', title_enc=excluded.title_enc,
+          body=excluded.body, color=excluded.color,
           modified=excluded.modified, archived=excluded.archived,
-          sort_order=excluded.sort_order;
+          sort_order=excluded.sort_order, lock_salt=excluded.lock_salt;
         """
         var st: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { return }
         defer { sqlite3_finalize(st) }
-        let sealed = Crypto.seal(n.body)
+        let sealed = sealedBody
         sqlite3_bind_text(st, 1, n.id, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(st, 2, n.title, -1, SQLITE_TRANSIENT)
         _ = sealed.withUnsafeBytes { raw in
-            sqlite3_bind_blob(st, 3, raw.baseAddress, Int32(sealed.count), SQLITE_TRANSIENT)
+            sqlite3_bind_blob(st, 2, raw.baseAddress, Int32(sealed.count), SQLITE_TRANSIENT)
         }
-        sqlite3_bind_int(st, 4, Int32(n.color))
-        sqlite3_bind_double(st, 5, n.created.timeIntervalSince1970)
-        sqlite3_bind_double(st, 6, n.modified.timeIntervalSince1970)
-        sqlite3_bind_int(st, 7, n.archived ? 1 : 0)
-        sqlite3_bind_double(st, 8, n.order)
+        sqlite3_bind_int(st, 3, Int32(n.color))
+        sqlite3_bind_double(st, 4, n.created.timeIntervalSince1970)
+        sqlite3_bind_double(st, 5, n.modified.timeIntervalSince1970)
+        sqlite3_bind_int(st, 6, n.archived ? 1 : 0)
+        sqlite3_bind_double(st, 7, n.order)
+        _ = sealedTitle.withUnsafeBytes { raw in
+            sqlite3_bind_blob(st, 8, raw.baseAddress, Int32(sealedTitle.count), SQLITE_TRANSIENT)
+        }
+        if let salt = n.lockSalt {
+            _ = salt.withUnsafeBytes { raw in
+                sqlite3_bind_blob(st, 9, raw.baseAddress, Int32(salt.count), SQLITE_TRANSIENT)
+            }
+        } else {
+            sqlite3_bind_null(st, 9)
+        }
         if sqlite3_step(st) != SQLITE_DONE {
             NSLog("Noty: upsert failed — \(String(cString: sqlite3_errmsg(db)))")
         }

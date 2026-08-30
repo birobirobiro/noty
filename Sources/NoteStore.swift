@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import AppKit
+import CryptoKit
 
 /// Observable in-memory model. SQLite is written through on every mutation;
 /// the array is the single source of truth for every window and deck.
@@ -13,6 +14,9 @@ final class NoteStore: ObservableObject {
 
     private let store = Store()
     private var undoTimer: Timer?
+    /// Keys for notes opened with a password during this run. Never written
+    /// anywhere; quitting the app shuts every locked note again.
+    private var sessionKeys: [String: SymmetricKey] = [:]
 
     struct PendingDelete: Equatable {
         let note: Note
@@ -48,10 +52,81 @@ final class NoteStore: ObservableObject {
     func updateBody(id: String, body: String) {
         guard let i = notes.firstIndex(where: { $0.id == id }) else { return }
         guard notes[i].body != body else { return }
-        notes[i].body = body
-        notes[i].title = Note.derivedTitle(from: body)
+        if notes[i].locked {
+            // Without the session key there is nothing to seal with, and
+            // writing the text unsealed would defeat the whole feature.
+            guard let key = sessionKeys[id], let inner = NoteLock.seal(body, with: key) else { return }
+            notes[i].sealed = inner
+            notes[i].body = body
+            // The title is derived from the first line, so keeping it current
+            // would print the note's opening words on a tab that is meant to
+            // give nothing away.
+        } else {
+            notes[i].body = body
+            notes[i].title = Note.derivedTitle(from: body)
+        }
         notes[i].modified = Date()
         store.upsert(notes[i])
+    }
+
+    // MARK: Locking
+
+    /// True while this run holds the key to a locked note.
+    func isRevealed(_ id: String) -> Bool { sessionKeys[id] != nil }
+
+    /// Puts a password on a note: the text is sealed with a key derived from
+    /// it, and the derived title is dropped so the deck stops showing the
+    /// first line of something that is supposed to be shut.
+    @discardableResult
+    func lock(id: String, password: String) -> Bool {
+        guard let i = notes.firstIndex(where: { $0.id == id }), !notes[i].locked else { return false }
+        let salt = NoteLock.newSalt()
+        guard let key = NoteLock.derive(password: password, salt: salt),
+              let inner = NoteLock.seal(notes[i].body, with: key) else { return false }
+        notes[i].lockSalt = salt
+        notes[i].sealed = inner
+        notes[i].title = ""
+        notes[i].modified = Date()
+        sessionKeys[id] = key          // whoever just typed it keeps reading
+        store.upsert(notes[i])
+        return true
+    }
+
+    /// Opens a locked note for this run. False means the password was wrong —
+    /// there is nothing else it can mean, since GCM's tag is what decides.
+    @discardableResult
+    func unlock(id: String, password: String) -> Bool {
+        guard let i = notes.firstIndex(where: { $0.id == id }),
+              let salt = notes[i].lockSalt, let blob = notes[i].sealed,
+              let key = NoteLock.derive(password: password, salt: salt),
+              let text = NoteLock.open(blob, with: key) else { return false }
+        notes[i].body = text
+        sessionKeys[id] = key
+        return true
+    }
+
+    /// Takes the password off, leaving the note stored the ordinary way.
+    @discardableResult
+    func removeLock(id: String, password: String) -> Bool {
+        guard let i = notes.firstIndex(where: { $0.id == id }),
+              let salt = notes[i].lockSalt, let blob = notes[i].sealed,
+              let key = NoteLock.derive(password: password, salt: salt),
+              let text = NoteLock.open(blob, with: key) else { return false }
+        notes[i].body = text
+        notes[i].title = Note.derivedTitle(from: text)
+        notes[i].lockSalt = nil
+        notes[i].sealed = nil
+        notes[i].modified = Date()
+        sessionKeys[id] = nil
+        store.upsert(notes[i])
+        return true
+    }
+
+    /// Shuts a revealed note again, dropping the text from memory.
+    func conceal(id: String) {
+        guard let i = notes.firstIndex(where: { $0.id == id }), notes[i].locked else { return }
+        sessionKeys[id] = nil
+        notes[i].body = ""
     }
 
     func cycleColor(id: String) {
