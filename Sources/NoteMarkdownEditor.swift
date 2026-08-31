@@ -196,14 +196,18 @@ struct NoteFormatBar: View {
 /// frontmost* — so it never fired here at all. `.activeAlways` is the option
 /// that says otherwise, and it has to be asked for by hand.
 struct HoverArea: NSViewRepresentable {
+    var delay: TimeInterval = 0
     let changed: (Bool) -> Void
 
-    func makeNSView(context: Context) -> NSView { Tracker(changed) }
+    func makeNSView(context: Context) -> NSView { Tracker(delay: delay, changed: changed) }
     func updateNSView(_ view: NSView, context: Context) {}
 
     final class Tracker: NSView {
+        private let delay: TimeInterval
         private let changed: (Bool) -> Void
-        init(_ changed: @escaping (Bool) -> Void) {
+
+        init(delay: TimeInterval, changed: @escaping (Bool) -> Void) {
+            self.delay = delay
             self.changed = changed
             super.init(frame: .zero)
         }
@@ -217,8 +221,34 @@ struct HoverArea: NSViewRepresentable {
                 owner: self))
             super.updateTrackingAreas()
         }
-        override func mouseEntered(with event: NSEvent) { changed(true) }
-        override func mouseExited(with event: NSEvent) { changed(false) }
+
+        /// The delay lives here rather than in a dispatched block because this
+        /// one can be *cancelled*. Entering and leaving inside the delay used
+        /// to leave the pending block to fire after the exit had already been
+        /// handled — raising a label that no further exit would take down.
+        override func mouseEntered(with event: NSEvent) {
+            NSObject.cancelPreviousPerformRequests(withTarget: self)
+            perform(#selector(show), with: nil, afterDelay: delay)
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            NSObject.cancelPreviousPerformRequests(withTarget: self)
+            changed(false)
+        }
+
+        /// A window going away takes its exit event with it.
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window == nil {
+                NSObject.cancelPreviousPerformRequests(withTarget: self)
+                changed(false)
+            }
+        }
+
+        @objc private func show() {
+            guard NSEvent.pressedMouseButtons == 0 else { return }
+            changed(true)
+        }
     }
 }
 
@@ -234,14 +264,9 @@ struct Tip: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(HoverArea { hovering in
-                guard hovering else { showing = false; return }
-                // A beat of delay, so passing over a row of buttons does not
-                // strobe a label under each one.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    if NSEvent.pressedMouseButtons == 0 { showing = true }
-                }
-            })
+            // A beat of delay, so passing over a row of buttons does not
+            // strobe a label under each one.
+            .background(HoverArea(delay: 0.35) { showing = $0 })
             .overlay(alignment: below ? .bottom : .top) {
                 if showing {
                     Text(text)
