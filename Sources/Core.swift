@@ -238,7 +238,73 @@ enum Ink {
 
 // MARK: - Model
 
-enum NoteTextDirection: String, CaseIterable { case automatic, leftToRight = "ltr", rightToLeft = "rtl" }
+enum NoteTextDirection: String, Codable, CaseIterable, Identifiable {
+    case automatic
+    case leftToRight
+    case rightToLeft
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .automatic:   "Automatic"
+        case .leftToRight: "Left to Right"
+        case .rightToLeft: "Right to Left"
+        }
+    }
+
+    var writingDirection: NSWritingDirection {
+        switch self {
+        case .automatic:   .natural
+        case .leftToRight: .leftToRight
+        case .rightToLeft: .rightToLeft
+        }
+    }
+
+    var alignment: NSTextAlignment {
+        switch self {
+        case .automatic:   .natural
+        case .leftToRight: .left
+        case .rightToLeft: .right
+        }
+    }
+
+    var paragraphStyle: NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.baseWritingDirection = writingDirection
+        style.alignment = alignment
+        return style
+    }
+
+    func paragraphStyle(for paragraph: String) -> NSParagraphStyle {
+        guard self == .automatic else { return paragraphStyle }
+        let direction = Self.firstStrongDirection(in: paragraph) ?? .leftToRight
+        let style = NSMutableParagraphStyle()
+        style.baseWritingDirection = direction
+        style.alignment = direction == .rightToLeft ? .right : .left
+        return style
+    }
+
+    static func firstStrongDirection(in text: String) -> NSWritingDirection? {
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x200E: return .leftToRight
+            case 0x061C, 0x200F: return .rightToLeft
+            default: break
+            }
+            guard scalar.properties.isAlphabetic else { continue }
+            return Self.isRightToLeftLetter(scalar.value) ? .rightToLeft : .leftToRight
+        }
+        return nil
+    }
+
+    private static func isRightToLeftLetter(_ value: UInt32) -> Bool {
+        switch value {
+        case 0x0590...0x08FF, 0xFB1D...0xFDFF, 0xFE70...0xFEFF, 0x10800...0x10FFF, 0x1E800...0x1EEFF: true
+        default: false
+        }
+    }
+}
 
 struct Note: Identifiable, Hashable {
     var id: String = UUID().uuidString

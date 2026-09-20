@@ -255,14 +255,24 @@ struct NoteEditorView: View {
 
     /// Header drag handle: `isMovableByWindowBackground` never fires inside the
     /// hosting view where SwiftUI/TextView consumes the click, so the header
-    /// needs an explicit drag that calls `performWindowDrag`.
+    /// needs an explicit drag.
     private struct WindowDragHandle: NSViewRepresentable {
         func makeNSView(context: Context) -> NSView { DragView() }
         func updateNSView(_ nsView: NSView, context: Context) {}
         final class DragView: NSView {
+            private var start: NSPoint?
             override func mouseDown(with event: NSEvent) {
-                window?.performWindowDrag(with: event)
+                start = event.locationInWindow
             }
+            override func mouseDragged(with event: NSEvent) {
+                guard let window, let start else { return }
+                let cur = event.locationInWindow
+                var origin = window.frame.origin
+                origin.x += cur.x - start.x
+                origin.y += cur.y - start.y
+                window.setFrameOrigin(origin)
+            }
+            override func mouseUp(with event: NSEvent) { start = nil }
         }
     }
 
