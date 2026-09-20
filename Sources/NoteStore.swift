@@ -219,6 +219,17 @@ final class NoteStore: ObservableObject {
         store.upsert(notes[i])
     }
 
+    /// Insert or replace wholesale - used by CloudSync pulls. Keeps timestamps.
+    func absorb(_ note: Note) {
+        if let i = notes.firstIndex(where: { $0.id == note.id }) {
+            guard notes[i] != note else { return }
+            notes[i] = note
+        } else {
+            notes.append(note)
+        }
+        store.upsert(note)
+    }
+
     /// Bulk insert used by import — returns how many notes landed.
     @discardableResult
     func ingest(_ incoming: [Note]) -> Int {

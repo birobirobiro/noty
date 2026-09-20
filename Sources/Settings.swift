@@ -47,6 +47,14 @@ enum Settings {
         set { d.set(newValue, forKey: "noteFontName") }
     }
 
+    /// Mirror notes into iCloud Drive (WIP from upstream 1.7.0). Off by default:
+    /// a synced note is plain Markdown outside the encrypted DB.
+    static var cloudSyncEnabled: Bool {
+        get { d.bool(forKey: "cloudSyncEnabled") }
+        set { d.set(newValue, forKey: "cloudSyncEnabled") }
+    }
+    static let cloudSyncInterval: TimeInterval = 5
+
     /// How long the deck may sit untouched before it tidies itself away.
     static let fanIdleTimeout: TimeInterval = 4
     static let noteIdleTimeout: TimeInterval = 60
