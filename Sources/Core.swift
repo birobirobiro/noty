@@ -238,6 +238,8 @@ enum Ink {
 
 // MARK: - Model
 
+enum NoteTextDirection: String, CaseIterable { case automatic, leftToRight = "ltr", rightToLeft = "rtl" }
+
 struct Note: Identifiable, Hashable {
     var id: String = UUID().uuidString
     var title: String = ""
@@ -248,6 +250,7 @@ struct Note: Identifiable, Hashable {
     var archived: Bool = false
     var pinned: Bool = false
     var order: Double = 0
+    var textDirection: NoteTextDirection = .automatic
     /// Set when the stored text would not decrypt. Such a note is shown as a
     /// warning and is never written back, so the ciphertext survives whatever
     /// went wrong (a restored database, a rotated key) long enough to fix it.
