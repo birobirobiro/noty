@@ -253,6 +253,19 @@ struct NoteEditorView: View {
         NoteWindow.focusText(in: NoteWindow.shared.contentView)
     }
 
+    /// Header drag handle: `isMovableByWindowBackground` never fires inside the
+    /// hosting view where SwiftUI/TextView consumes the click, so the header
+    /// needs an explicit drag that calls `performWindowDrag`.
+    private struct WindowDragHandle: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView { DragView() }
+        func updateNSView(_ nsView: NSView, context: Context) {}
+        final class DragView: NSView {
+            override func mouseDown(with event: NSEvent) {
+                window?.performWindowDrag(with: event)
+            }
+        }
+    }
+
     private var header: some View {
         HStack(spacing: 8) {
             TextField("", text: $title)
@@ -317,6 +330,11 @@ struct NoteEditorView: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 32)
+        .contentShape(Rectangle())
+        .background(WindowDragHandle())
+        .onHover { hovering in
+            if hovering { NSCursor.openHand.push() } else { NSCursor.pop() }
+        }
     }
 
     private var findBar: some View {
