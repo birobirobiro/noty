@@ -1,0 +1,135 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXAggregateTarget section */
+		AA111111111111111111111111 /* Noty */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = BB111111111111111111111111 /* Build configuration list for PBXAggregateTarget "Noty" */;
+			buildPhases = (
+				CC111111111111111111111111 /* ShellScript */,
+			);
+			dependencies = (
+			);
+			name = Noty;
+			productName = Noty;
+		};
+/* End PBXAggregateTarget section */
+
+/* Begin PBXBuildFile section */
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+/* End PBXFileReference section */
+
+/* Begin PBXProject section */
+		DD111111111111111111111111 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					AA111111111111111111111111 = {
+						CreatedOnToolsVersion = 14.3;
+					};
+				};
+			};
+			buildConfigurationList = EE111111111111111111111111 /* Build configuration list for PBXProject "Noty" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = FF111111111111111111111111;
+			productRefGroup = FF111111111111111111111111;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA111111111111111111111111 /* Noty */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CC111111111111111111111111 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "./build.sh run\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		GG111111111111111111111111 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		HH111111111111111111111111 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		II111111111111111111111111 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		JJ111111111111111111111111 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BB111111111111111111111111 /* Build configuration list for PBXAggregateTarget "Noty" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				II111111111111111111111111 /* Debug */,
+				JJ111111111111111111111111 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EE111111111111111111111111 /* Build configuration list for PBXProject "Noty" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				GG111111111111111111111111 /* Debug */,
+				HH111111111111111111111111 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = DD111111111111111111111111 /* Project object */;
+}
