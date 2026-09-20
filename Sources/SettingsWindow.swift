@@ -56,6 +56,7 @@ struct SettingsView: View {
     @State private var language = Settings.language
     @State private var languageChanged = false
     @State private var autoUpdate = Updater.shared.automaticallyChecks
+    @State private var cloudSync = Settings.cloudSyncEnabled
 
     private func refresh() { (NSApp.delegate as? AppDelegate)?.refreshDecks() }
 
@@ -156,6 +157,34 @@ struct SettingsView: View {
                     }
                     .font(.system(size: 11).monospacedDigit())
                     .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("iCloud Drive") {
+                Toggle("Sync notes as Markdown", isOn: $cloudSync)
+                    .onChange(of: cloudSync) { _, v in
+                        Settings.cloudSyncEnabled = v
+                        CloudSync.shared.reload()
+                    }
+                Text("Saves a Markdown copy of each note in iCloud Drive/Noty. Off by default — synced files are plain text, outside the encrypted database.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if cloudSync {
+                    HStack {
+                        Button("Sync now") { _ = CloudSync.shared.syncNow() }
+                            .controlSize(.small)
+                        Spacer()
+                        if CloudFolder.isAvailable {
+                            Text(CloudSync.shared.lastSync.map { "Last: \(Fmt.ago($0))" } ?? "Never synced")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("iCloud Drive unavailable")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
 
