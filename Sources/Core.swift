@@ -266,6 +266,8 @@ struct Note: Identifiable, Hashable {
 
     var palette: NoteColor { NoteColor.at(color) }
 
+    var hasCustomTitle: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
     /// Title shown in the fan / lists, derived from the first non-empty line.
     static func derivedTitle(from body: String) -> String {
         let line = body.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
