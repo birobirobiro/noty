@@ -1,6 +1,11 @@
 import AppKit
 import UniformTypeIdentifiers
 
+// Stub for upstream TaskTextView - local Vendor uses NativeTextView, so alias to NSTextView for now
+#if !canImport(TaskTextView)
+typealias TaskTextView = NSTextView
+#endif
+
 // MARK: - Pasteboard / file intake
 
 /// Turns drag-and-drop and pasteboard payloads into saved image ids. Files keep
@@ -378,9 +383,8 @@ final class NoteImageOverlayManager: NSObject {
         // The drag reflowed the text; re-find the token by id near its last
         // known spot rather than trusting the stale range.
         let tokens = ImageStore.tokens(in: storage.string)
-        guard let token = tokens.filter({ $0.id == slot.id })
-            .min(by: { abs($0.range.location - slot.tokenRange.location)
-                        < abs($1.range.location - slot.tokenRange.location) }) else { return }
+        let filtered2 = tokens.filter { $0.id == slot.id }
+        guard let token = filtered2.min(by: { abs($0.range.location - slot.tokenRange.location) < abs($1.range.location - slot.tokenRange.location) }) else { return }
         let replacement = ImageStore.token(id: token.id, width: width.rounded())
         guard (replacement as NSString) != (storage.string as NSString).substring(with: token.range) as NSString,
               tv.shouldChangeText(in: token.range, replacementString: replacement) else { return }
@@ -480,9 +484,8 @@ final class NoteImageOverlayManager: NSObject {
               let slot = slots[key],
               let tv = textView, let storage = tv.textStorage else { return }
         let tokens = ImageStore.tokens(in: storage.string)
-        guard let token = tokens.filter({ $0.id == slot.id })
-            .min(by: { abs($0.range.location - slot.tokenRange.location)
-                        < abs($1.range.location - slot.tokenRange.location) }) else { return }
+        let filtered = tokens.filter { $0.id == slot.id }
+        guard let token = filtered.min(by: { abs($0.range.location - slot.tokenRange.location) < abs($1.range.location - slot.tokenRange.location) }) else { return }
         var caret = NSMaxRange(token.range)
         if caret < storage.length, (storage.string as NSString).character(at: caret) == 10 {
             caret += 1
